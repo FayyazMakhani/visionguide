@@ -50,9 +50,12 @@ export async function callClaude(systemPrompt, messages) {
 
   const data = await response.json();
   const text = data.content?.[0]?.text ?? '';
+  // Claude sometimes wraps the JSON in a ```json ... ``` code fence despite
+  // the system prompt asking for raw JSON — strip it before parsing.
+  const cleaned = text.trim().replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '');
 
   try {
-    return JSON.parse(text);
+    return JSON.parse(cleaned);
   } catch {
     // Truncated or malformed JSON — log for debugging, return safe default so loop continues
     console.warn('JSON parse failed. Raw response:', text);

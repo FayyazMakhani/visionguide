@@ -46,9 +46,14 @@ Rules:
 - Moving people passing to the side are urgency=medium at most, never high.
 - An open door, a wall at the end of a corridor, or a recessed doorway is not an obstacle.
 - For text-based goals (room numbers, named rooms), look for signage on doors and walls.
-  goal_found=true if the sign is visible and readable even if not fully centered.
-  goal_confidence reflects how clearly the visible sign matches the goal string.
-- If goal is not visible: goal_found=false, goal_confidence=0.
+  goal_found=true only when the destination is immediately at hand: the user is right in
+  front of it (e.g. standing at the door, close enough to reach for the handle), not merely
+  when a sign is visible and readable from down a hallway or across a room.
+  goal_confidence reflects how clearly the visible sign matches the goal string AND how
+  close the user is. A legible sign seen from a distance is goal_found=false with low
+  goal_confidence; the same sign filling a large portion of the frame right ahead is
+  goal_found=true with high goal_confidence.
+- If goal is not visible, or visible but still far away: goal_found=false, goal_confidence=0.
 - If nothing is blocking and the path is clear, say so: "Path is clear, continue ahead."
 - Do NOT include scene descriptions or commentary. Navigation output only.
 - Return valid JSON only. Nothing else.`;

@@ -100,11 +100,7 @@ export default function App() {
       }
     }
 
-    // Play safety onboarding prompt — loop starts after it finishes speaking
-    const safetyUtterance = new SpeechSynthesisUtterance(
-      'VisionGuide is a navigation aid only. Keep using your cane or other mobility aid.'
-    );
-    safetyUtterance.onend = () => {
+    const startNavigating = () => {
       setStatus('navigating');
       setContext([]);
       // Most common demo failure is holding the phone at the wrong angle — say so before the loop starts
@@ -118,7 +114,21 @@ export default function App() {
         });
       }, 2500); // Wait for holding instruction to finish
     };
-    window.speechSynthesis.speak(safetyUtterance);
+
+    // Safety disclaimer — only spoken on the first navigation start of the day
+    const today = new Date().toISOString().slice(0, 10);
+    if (localStorage.getItem('vg_safety_date') === today) {
+      startNavigating();
+    } else {
+      const safetyUtterance = new SpeechSynthesisUtterance(
+        'VisionGuide is a navigation aid only. Keep using your cane or other mobility aid.'
+      );
+      safetyUtterance.onend = () => {
+        localStorage.setItem('vg_safety_date', today);
+        startNavigating();
+      };
+      window.speechSynthesis.speak(safetyUtterance);
+    }
 
   }, [goal, status, handleSpeak, handleContextUpdate, handleArrival, handleError]);
 

@@ -28,7 +28,9 @@ export async function callClaude(systemPrompt, messages) {
       body: JSON.stringify({
         model: 'claude-sonnet-4-6',
         max_tokens: 500,  // 300 risks truncating multi-obstacle JSON mid-stream; 500 provides headroom
-        system: systemPrompt,
+        system: [
+          { type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral' } },
+        ],
         messages,
       }),
     });

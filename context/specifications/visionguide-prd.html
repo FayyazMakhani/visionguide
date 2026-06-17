@@ -1,0 +1,1597 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VisionGuide PRD — Product Requirements Document</title>
+<style>
+  :root {
+    --ink: #0f0f0f;
+    --ink-secondary: #444;
+    --ink-muted: #777;
+    --surface: #f7f6f2;
+    --white: #ffffff;
+    --rule: #d8d5ce;
+    --accent: #1a4fd6;
+    --accent-light: #e8edfb;
+    --warn: #b84c00;
+    --warn-light: #fff2ea;
+    --success: #1a6640;
+    --success-light: #eaf4ee;
+    --tag-bg: #eceae4;
+    --radius: 6px;
+    --mono: "Courier New", Courier, monospace;
+    --sans: system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    font-family: var(--sans);
+    background: var(--surface);
+    color: var(--ink);
+    font-size: 15px;
+    line-height: 1.7;
+  }
+
+  /* Layout */
+  .layout {
+    display: grid;
+    grid-template-columns: 240px 1fr;
+    min-height: 100vh;
+  }
+
+  /* Sidebar */
+  .sidebar {
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+    background: var(--white);
+    border-right: 1px solid var(--rule);
+    padding: 32px 0;
+  }
+
+  .sidebar-logo {
+    padding: 0 24px 24px;
+    border-bottom: 1px solid var(--rule);
+    margin-bottom: 16px;
+  }
+
+  .sidebar-logo .product-name {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--ink);
+    letter-spacing: -0.01em;
+  }
+
+  .sidebar-logo .doc-type {
+    font-size: 11px;
+    color: var(--ink-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-top: 2px;
+  }
+
+  .nav-section-label {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--ink-muted);
+    padding: 12px 24px 4px;
+  }
+
+  .nav-link {
+    display: block;
+    padding: 5px 24px;
+    font-size: 13px;
+    color: var(--ink-secondary);
+    text-decoration: none;
+    border-left: 2px solid transparent;
+    transition: color 0.15s, border-color 0.15s, background 0.15s;
+  }
+
+  .nav-link:hover {
+    color: var(--accent);
+    border-left-color: var(--accent);
+    background: var(--accent-light);
+  }
+
+  .nav-link.sub {
+    padding-left: 36px;
+    font-size: 12px;
+    color: var(--ink-muted);
+  }
+
+  /* Main content */
+  .main {
+    max-width: 860px;
+    padding: 64px 56px;
+  }
+
+  /* Cover */
+  .cover {
+    margin-bottom: 72px;
+    padding-bottom: 48px;
+    border-bottom: 2px solid var(--ink);
+  }
+
+  .cover-eyebrow {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--accent);
+    margin-bottom: 16px;
+  }
+
+  .cover-title {
+    font-size: 42px;
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    line-height: 1.1;
+    color: var(--ink);
+    margin-bottom: 12px;
+  }
+
+  .cover-subtitle {
+    font-size: 18px;
+    color: var(--ink-secondary);
+    font-weight: 400;
+    margin-bottom: 32px;
+    line-height: 1.4;
+  }
+
+  .cover-meta {
+    display: flex;
+    gap: 32px;
+    flex-wrap: wrap;
+  }
+
+  .meta-item { font-size: 13px; }
+  .meta-label { color: var(--ink-muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; display: block; margin-bottom: 2px; }
+  .meta-value { color: var(--ink); font-weight: 500; }
+
+  /* Status badges */
+  .badge {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  .badge-draft { background: var(--tag-bg); color: var(--ink-secondary); }
+  .badge-mvp { background: var(--accent-light); color: var(--accent); }
+  .badge-out { background: #f0f0f0; color: #999; }
+
+  /* Sections */
+  .section {
+    margin-bottom: 64px;
+  }
+
+  .section-header {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    margin-bottom: 24px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .section-number {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--ink-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    min-width: 28px;
+  }
+
+  .section-title {
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: var(--ink);
+  }
+
+  h3 {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--ink);
+    margin: 28px 0 10px;
+    letter-spacing: -0.01em;
+  }
+
+  h4 {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--ink-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    margin: 20px 0 8px;
+  }
+
+  p { margin-bottom: 14px; color: var(--ink-secondary); }
+  p:last-child { margin-bottom: 0; }
+
+  /* Requirement blocks */
+  .req {
+    background: var(--white);
+    border: 1px solid var(--rule);
+    border-radius: var(--radius);
+    margin-bottom: 10px;
+    overflow: hidden;
+  }
+
+  .req-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--rule);
+    background: var(--surface);
+  }
+
+  .req-id {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--ink-muted);
+    min-width: 72px;
+  }
+
+  .req-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--ink);
+    flex: 1;
+  }
+
+  .req-body {
+    padding: 12px 16px;
+    font-size: 13px;
+    color: var(--ink-secondary);
+    line-height: 1.6;
+  }
+
+  .req-body ul {
+    margin: 8px 0 0 16px;
+  }
+
+  .req-body li {
+    margin-bottom: 4px;
+  }
+
+  /* Acceptance criteria */
+  .ac-list {
+    list-style: none;
+    margin: 0;
+  }
+
+  .ac-list li {
+    display: flex;
+    gap: 10px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--rule);
+    font-size: 13px;
+    color: var(--ink-secondary);
+    align-items: flex-start;
+  }
+
+  .ac-list li:last-child { border-bottom: none; }
+
+  .ac-check {
+    width: 16px;
+    height: 16px;
+    border: 1.5px solid var(--rule);
+    border-radius: 3px;
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+
+  /* API contract */
+  .code-block {
+    background: #1a1a1a;
+    color: #e8e6df;
+    border-radius: var(--radius);
+    padding: 20px 24px;
+    font-family: var(--mono);
+    font-size: 12.5px;
+    line-height: 1.7;
+    overflow-x: auto;
+    margin: 12px 0 20px;
+  }
+
+  .code-block .key { color: #7eb8f7; }
+  .code-block .str { color: #a8d8a8; }
+  .code-block .comment { color: #666; }
+  .code-block .num { color: #f7c97e; }
+  .code-block .kw { color: #e8a0f0; }
+
+  /* Tables */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    margin: 12px 0 20px;
+  }
+
+  th {
+    text-align: left;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: var(--ink-muted);
+    padding: 8px 12px;
+    border-bottom: 2px solid var(--rule);
+  }
+
+  td {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--rule);
+    color: var(--ink-secondary);
+    vertical-align: top;
+  }
+
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: var(--surface); }
+
+  td:first-child {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--ink-muted);
+    white-space: nowrap;
+  }
+
+  /* Callout boxes */
+  .callout {
+    border-radius: var(--radius);
+    padding: 14px 18px;
+    margin: 16px 0;
+    font-size: 13px;
+    line-height: 1.6;
+  }
+
+  .callout-warn {
+    background: var(--warn-light);
+    border-left: 3px solid var(--warn);
+    color: var(--warn);
+  }
+
+  .callout-info {
+    background: var(--accent-light);
+    border-left: 3px solid var(--accent);
+    color: var(--accent);
+  }
+
+  .callout-success {
+    background: var(--success-light);
+    border-left: 3px solid var(--success);
+    color: var(--success);
+  }
+
+  .callout strong { font-weight: 600; }
+
+  /* Sprint cards */
+  .sprint-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin: 16px 0;
+  }
+
+  .sprint-card {
+    background: var(--white);
+    border: 1px solid var(--rule);
+    border-radius: var(--radius);
+    padding: 20px;
+  }
+
+  .sprint-number {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--ink-muted);
+    margin-bottom: 4px;
+  }
+
+  .sprint-title {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--ink);
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .sprint-tasks {
+    list-style: none;
+    font-size: 12.5px;
+    color: var(--ink-secondary);
+  }
+
+  .sprint-tasks li {
+    padding: 4px 0;
+    border-bottom: 1px solid var(--rule);
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
+  }
+
+  .sprint-tasks li:last-child { border-bottom: none; }
+
+  .task-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--rule);
+    flex-shrink: 0;
+    margin-top: 7px;
+  }
+
+  .sprint-deliverable {
+    margin-top: 12px;
+    padding: 8px 12px;
+    background: var(--success-light);
+    border-radius: 4px;
+    font-size: 12px;
+    color: var(--success);
+    font-weight: 500;
+  }
+
+  /* Diagram container */
+  .diagram-wrap {
+    background: var(--white);
+    border: 1px solid var(--rule);
+    border-radius: var(--radius);
+    padding: 24px;
+    margin: 20px 0;
+    overflow-x: auto;
+  }
+
+  .diagram-caption {
+    font-size: 12px;
+    color: var(--ink-muted);
+    text-align: center;
+    margin-top: 12px;
+    font-style: italic;
+  }
+
+  /* Persona card */
+  .persona {
+    background: var(--white);
+    border: 1px solid var(--rule);
+    border-radius: var(--radius);
+    padding: 20px 24px;
+    margin-bottom: 12px;
+    display: grid;
+    grid-template-columns: 64px 1fr;
+    gap: 20px;
+    align-items: start;
+  }
+
+  .persona-avatar {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    background: var(--accent-light);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    color: var(--accent);
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+
+  .persona-name {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--ink);
+    margin-bottom: 2px;
+  }
+
+  .persona-role {
+    font-size: 12px;
+    color: var(--ink-muted);
+    margin-bottom: 8px;
+  }
+
+  .persona-detail {
+    font-size: 13px;
+    color: var(--ink-secondary);
+    line-height: 1.5;
+  }
+
+  /* Risk table */
+  .risk-high td:nth-child(3) { color: #c00; font-weight: 600; }
+  .risk-med td:nth-child(3) { color: var(--warn); font-weight: 600; }
+  .risk-low td:nth-child(3) { color: var(--success); font-weight: 600; }
+
+  /* Page break hint for print */
+  @media print {
+    .sidebar { display: none; }
+    .layout { display: block; }
+    .main { max-width: 100%; padding: 32px; }
+    .section { page-break-inside: avoid; }
+  }
+
+  @media (max-width: 768px) {
+    .layout { grid-template-columns: 1fr; }
+    .sidebar { display: none; }
+    .main { padding: 32px 24px; }
+    .sprint-grid { grid-template-columns: 1fr; }
+    .cover-title { font-size: 28px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="layout">
+
+<!-- Sidebar nav -->
+<nav class="sidebar" aria-label="Document navigation">
+  <div class="sidebar-logo">
+    <div class="product-name">VisionGuide</div>
+    <div class="doc-type">Product Requirements Document</div>
+  </div>
+
+  <div class="nav-section-label">Overview</div>
+  <a class="nav-link" href="#cover">Cover</a>
+  <a class="nav-link" href="#s1">1. Problem Statement</a>
+  <a class="nav-link" href="#s2">2. Product Vision</a>
+  <a class="nav-link" href="#s3">3. Users &amp; Personas</a>
+  <a class="nav-link" href="#s4">4. Goals &amp; Metrics</a>
+
+  <div class="nav-section-label">Requirements</div>
+  <a class="nav-link" href="#s5">5. Functional Requirements</a>
+  <a class="nav-link sub" href="#fr-camera">Camera &amp; Vision</a>
+  <a class="nav-link sub" href="#fr-nav">Navigation</a>
+  <a class="nav-link sub" href="#fr-scan">Scan &amp; Explore</a>
+  <a class="nav-link sub" href="#fr-obstacle">Obstacle Detection</a>
+  <a class="nav-link sub" href="#fr-audio">Audio Output</a>
+  <a class="nav-link sub" href="#fr-ui">UI &amp; Controls</a>
+  <a class="nav-link" href="#s6">6. Non-Functional Requirements</a>
+  <a class="nav-link" href="#s7">7. Out of Scope</a>
+
+  <div class="nav-section-label">Technical</div>
+  <a class="nav-link" href="#s8">8. System Architecture</a>
+  <a class="nav-link" href="#s9">9. API Contract</a>
+  <a class="nav-link" href="#s10">10. Component Specs</a>
+  <a class="nav-link" href="#s11">11. Data Flow</a>
+
+  <div class="nav-section-label">Delivery</div>
+  <a class="nav-link" href="#s12">12. Sprint Breakdown</a>
+  <a class="nav-link" href="#s13">13. Acceptance Criteria</a>
+  <a class="nav-link" href="#s14">14. Risks &amp; Mitigations</a>
+  <a class="nav-link" href="#s15">15. Open Questions</a>
+  <a class="nav-link" href="#s16">16. Deferred but Architected</a>
+</nav>
+
+<!-- Main content -->
+<main class="main">
+
+  <!-- Cover -->
+  <div class="cover" id="cover">
+    <div class="cover-eyebrow">Product Requirements Document</div>
+    <div class="cover-title">VisionGuide</div>
+    <div class="cover-subtitle">AI-powered indoor wayfinding assistant for visually impaired individuals</div>
+    <div class="cover-meta">
+      <div class="meta-item">
+        <span class="meta-label">Version</span>
+        <span class="meta-value">1.0 <span class="badge badge-draft">Draft</span></span>
+      </div>
+      <div class="meta-item">
+        <span class="meta-label">Date</span>
+        <span class="meta-value">June 2026</span>
+      </div>
+      <div class="meta-item">
+        <span class="meta-label">Target</span>
+        <span class="meta-value"><span class="badge badge-mvp">MVP</span> Hackathon Build</span>
+      </div>
+      <div class="meta-item">
+        <span class="meta-label">Platform</span>
+        <span class="meta-value">Web — Chrome on Android</span>
+      </div>
+      <div class="meta-item">
+        <span class="meta-label">Timeline</span>
+        <span class="meta-value">4 weeks</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- S1: Problem Statement -->
+  <section class="section" id="s1">
+    <div class="section-header">
+      <span class="section-number">01</span>
+      <h2 class="section-title">Problem Statement</h2>
+    </div>
+    <p>GPS navigation has transformed outdoor travel for visually impaired individuals, but GPS signals are unavailable or unreliable indoors. Complex indoor environments — hospitals, transit hubs, shopping malls, airports, apartment buildings — present significant and daily navigation challenges.</p>
+    <p>Existing indoor solutions require specialized building infrastructure: Bluetooth beacons, NFC tags, pre-mapped floor plans. This makes them expensive to deploy, limited to specific buildings, and unavailable in the vast majority of real environments people navigate every day.</p>
+    <p>The core problem is: <strong>a visually impaired person in an unfamiliar indoor space has no reliable, independent way to locate a door, avoid an obstacle, or follow directional signage without assistance from another person.</strong></p>
+
+    <h3>Pain points addressed</h3>
+    <table>
+      <thead><tr><th>Pain point</th><th>Current workaround</th><th>VisionGuide approach</th></tr></thead>
+      <tbody>
+        <tr><td>FR-P01</td><td>Locating a specific door or room</td><td>Ask a passerby</td><td>Scan room, Claude identifies and directs</td></tr>
+        <tr><td>FR-P02</td><td>Avoiding obstacles mid-path</td><td>White cane detection only</td><td>Camera detects and speaks urgency-rated alert</td></tr>
+        <tr><td>FR-P03</td><td>Reading directional signs</td><td>Ask for help, specialized OCR apps</td><td>Claude reads sign text in scene, incorporates into direction</td></tr>
+        <tr><td>FR-P04</td><td>Unfamiliar multi-story buildings</td><td>Requires escort</td><td>Continuous spoken guidance based on live scene</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- S2: Product Vision -->
+  <section class="section" id="s2">
+    <div class="section-header">
+      <span class="section-number">02</span>
+      <h2 class="section-title">Product Vision</h2>
+    </div>
+    <p>VisionGuide turns a standard Android smartphone into an indoor navigation assistant using only its camera and an AI vision model. No specialized hardware. No pre-installed building infrastructure. No internet-dependent map database.</p>
+
+    <div class="callout callout-info">
+      <strong>Vision statement:</strong> Any visually impaired person should be able to pick up a phone running VisionGuide, state where they want to go, and receive real-time spoken guidance to navigate there independently — in any indoor environment, on their first visit.
+    </div>
+
+    <h3>Safety boundaries</h3>
+    <div class="callout callout-warn">
+      <strong>VisionGuide is a supplemental navigation aid only.</strong> It does not replace a white cane, guide dog, or other primary mobility aid. The system makes probabilistic assessments from a camera feed and will make errors — including hallucinating clear paths that are not clear. Users must maintain use of their primary mobility aid at all times during navigation. This boundary must appear in the onboarding voice prompt at every session start and in all public-facing product descriptions.
+    </div>
+    <p>The system operates at ~1 fps with 3–5 second processing latency. At normal walking speed (~1.4 m/s), the user may travel 4–7 meters between a frame being captured and the resulting audio playing. VisionGuide is designed for deliberate, cautious movement — not normal walking pace.</p>
+
+    <h3>Design principles</h3>
+    <table>
+      <thead><tr><th>Principle</th><th>What it means in practice</th></tr></thead>
+      <tbody>
+        <tr><td>DP-01</td><td><strong>Audio first</strong></td><td>Every interaction and feedback is spoken. The screen is secondary. No interaction requires looking at the phone.</td></tr>
+        <tr><td>DP-02</td><td><strong>Interrupt for danger</strong></td><td>High-urgency obstacles always interrupt ongoing speech. Latency for danger alerts is prioritized above all else.</td></tr>
+        <tr><td>DP-03</td><td><strong>Zero infrastructure</strong></td><td>Works in any building. No beacons, no floor plans, no pre-registration required.</td></tr>
+        <tr><td>DP-04</td><td><strong>Minimal UI</strong></td><td>One button to start. One input for the goal. Nothing the user needs to tap during navigation.</td></tr>
+        <tr><td>DP-05</td><td><strong>Graceful degradation</strong></td><td>When the API is slow or unavailable, the app speaks a holding message. It never falls silent without explanation.</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- S3: Users -->
+  <section class="section" id="s3">
+    <div class="section-header">
+      <span class="section-number">03</span>
+      <h2 class="section-title">Users &amp; Personas</h2>
+    </div>
+
+    <div class="persona">
+      <div class="persona-avatar">M</div>
+      <div>
+        <div class="persona-name">Marcus, 34</div>
+        <div class="persona-role">Congenitally blind — hospital patient</div>
+        <div class="persona-detail">Attends monthly medical appointments at a large hospital complex. Has no sighted companion. Struggles to navigate between the lobby, elevators, and specific clinic floors without stopping to ask for directions every few minutes. Proficient with VoiceOver on iOS and TalkBack on Android. Comfortable with tech.</div>
+      </div>
+    </div>
+
+    <div class="persona">
+      <div class="persona-avatar">R</div>
+      <div>
+        <div class="persona-name">Rachel, 61</div>
+        <div class="persona-role">Progressive vision loss — shopping and daily errands</div>
+        <div class="persona-detail">Retinitis pigmentosa, severe tunnel vision. Can see shapes but not read signs or detect floor-level obstacles. Shops independently but avoids large malls due to layout complexity. Not highly tech-literate. Needs simple, clear voice instructions with no jargon.</div>
+      </div>
+    </div>
+
+    <div class="persona">
+      <div class="persona-avatar">J</div>
+      <div>
+        <div class="persona-name">James, 22</div>
+        <div class="persona-role">Legally blind — university student</div>
+        <div class="persona-detail">Navigates a large campus daily. Knows familiar routes but struggles in new buildings or during events when corridors are reconfigured. Power user — wants fast, efficient directions without unnecessary description. Will provide feedback aggressively if the tool is too slow or verbose.</div>
+      </div>
+    </div>
+
+    <h3>Primary user for MVP</h3>
+    <p>Marcus. He represents the clearest use case: an unfamiliar indoor environment, independent travel, and a specific destination. MVP success is defined as Marcus being able to navigate from a building entrance to a target room without assistance.</p>
+  </section>
+
+  <!-- S4: Goals & Metrics -->
+  <section class="section" id="s4">
+    <div class="section-header">
+      <span class="section-number">04</span>
+      <h2 class="section-title">Goals &amp; Success Metrics</h2>
+    </div>
+
+    <h3>MVP goals (hackathon scope)</h3>
+    <table>
+      <thead><tr><th>ID</th><th>Goal</th><th>Metric</th><th>Target</th></tr></thead>
+      <tbody>
+        <tr><td>G-01</td><td>User can navigate to a named destination</td><td>% of demo sessions where user reaches goal without physical assistance</td><td>&ge;80%</td></tr>
+        <tr><td>G-02</td><td>Obstacle alerts are delivered promptly</td><td>Time from obstacle entering frame to spoken alert</td><td>&le;4 seconds. No lead-time guarantee — system is a supplement to primary mobility aids, not a collision avoidance system.</td></tr>
+        <tr><td>G-03</td><td>Audio output is timely</td><td>Time from frame capture to first spoken word</td><td>&le;3 seconds (p50)</td></tr>
+        <tr><td>G-04</td><td>Session stability</td><td>App runs without crash or silent failure for 5+ minutes</td><td>100% of demo sessions</td></tr>
+        <tr><td>G-05</td><td>Directions are non-repetitive</td><td>Identical consecutive spoken directions</td><td>&le;1 repeat per 60s</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Post-MVP goals (not in scope)</h3>
+    <p>Multi-floor navigation, persistent landmark memory across sessions, personalized user profiles, iOS support, and offline operation are explicitly deferred.</p>
+  </section>
+
+  <!-- S5: Functional Requirements -->
+  <section class="section" id="s5">
+    <div class="section-header">
+      <span class="section-number">05</span>
+      <h2 class="section-title">Functional Requirements</h2>
+    </div>
+
+    <h3 id="fr-camera">Camera &amp; Vision</h3>
+
+    <div class="req">
+      <div class="req-header">
+        <span class="req-id">FR-CAM-01</span>
+        <span class="req-title">Camera stream initialization</span>
+        <span class="badge badge-mvp">MVP</span>
+      </div>
+      <div class="req-body">
+        The app must request camera access via <code>getUserMedia({ video: { facingMode: 'environment' } })</code> on session start. If permission is denied, it must speak an error and display recovery instructions.
+        <ul>
+          <li>Use rear-facing camera only</li>
+          <li>Minimum resolution: 640×480</li>
+          <li>Stream must be rendered in a hidden <code>&lt;video&gt;</code> element to keep it alive</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="req">
+      <div class="req-header">
+        <span class="req-id">FR-CAM-02</span>
+        <span class="req-title">Frame extraction at 1 fps</span>
+        <span class="badge badge-mvp">MVP</span>
+      </div>
+      <div class="req-body">
+        Every 1000ms, the app draws the current video frame to a canvas element and exports it as a JPEG at 70% quality. The resulting base64 string is passed to the inference pipeline.
+        <ul>
+          <li>Frame must be dropped if a prior API call is still pending</li>
+          <li>API response must be discarded if the frame was captured more than 4500ms ago (p95 latency + 500ms buffer — responses older than this reflect a scene the user has moved significantly beyond)</li>
+          <li>Canvas dimensions: 640×480 (fixed, not dynamic)</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="req">
+      <div class="req-header">
+        <span class="req-id">FR-CAM-03</span>
+        <span class="req-title">Screen wake lock</span>
+        <span class="badge badge-mvp">MVP</span>
+      </div>
+      <div class="req-body">
+        The app must request a WakeLock on session start to prevent the screen from sleeping during navigation. If WakeLock is unavailable, it must warn the user via TTS that the screen must remain on.
+      </div>
+    </div>
+
+    <h3 id="fr-nav">Navigation</h3>
+
+    <div class="req">
+      <div class="req-header">
+        <span class="req-id">FR-NAV-01</span>
+        <span class="req-title">Goal input</span>
+        <span class="badge badge-mvp">MVP</span>
+      </div>
+      <div class="req-body">
+        Before navigation starts, the user speaks or types a plain-language destination (e.g. "the elevator", "room 204", "the exit"). Voice input via Web Speech Recognition API is the primary input method. Text field is the fallback. The goal string is stored in app state and included in every API call for the session duration.
+        <ul>
+          <li>Goal is immutable per session. To change destination, user restarts.</li>
+          <li>Voice input: tap microphone button, speak goal, recognition result populates the text field for confirmation before starting navigation</li>
+          <li>Text field must have <code>aria-label="Navigation destination"</code></li>
+          <li>Field must be focused on page load for screen reader compatibility</li>
+          <li>If Speech Recognition is unavailable, fall back silently to text-only input</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="req">
+      <div class="req-header">
+        <span class="req-id">FR-NAV-02</span>
+        <span class="req-title">Navigation directions</span>
+        <span class="badge badge-mvp">MVP</span>
+      </div>
+      <div class="req-body">
+        Each API response includes a <code>navigation_direction</code> string of maximum 15 words. This is spoken via TTS after any queued speech completes, unless an obstacle interrupt is pending.
+        <ul>
+          <li>Directions must use compass-free language: "turn left", "straight ahead", "move right"</li>
+          <li>Same direction must not be spoken twice consecutively unless &gt;10 seconds have elapsed</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="req">
+      <div class="req-header">
+        <span class="req-id">FR-NAV-03</span>
+        <span class="req-title">Goal arrival announcement</span>
+        <span class="badge badge-mvp">MVP</span>
+      </div>
+      <div class="req-body">
+        When <code>goal_found: true</code> is returned with <code>goal_confidence &ge; 0.8</code> in two consecutive frames, the app must speak "You have arrived at [goal]" and stop the navigation loop.
+        <ul>
+          <li>Two-frame confirmation required to prevent false positives</li>
+          <li>Loop must fully stop — no further API calls after arrival</li>
+        </ul>
+      </div>
+    </div>
+
+    <h3 id="fr-scan">Scan &amp; Explore Phases</h3>
+
+    <div class="req">
+      <div class="req-header">
+        <span class="req-id">FR-SCAN-01</span>
+        <span class="req-title">Scan phase on Start</span>
+        <span class="badge badge-mvp">MVP</span>
+      </div>
+      <div class="req-body">
+        The phone may not be pointed at the destination when navigation starts. Before the normal navigation loop begins, every Start tap enters a <strong>scan phase</strong>: the user holds the phone up and slowly rotates it while Claude looks for the destination in frame.
+        <ul>
+          <li>Frame capture interval during scan: 500ms (2 fps) — faster than navigation since the user is stationary, not walking</li>
+          <li>Uses a dedicated scan prompt distinct from the navigation prompt</li>
+          <li>Exits to navigation phase once Claude returns a non-null <code>navigation_direction</code> with <code>goal_confidence</code> at or above 0.5 — a lower bar than the 0.8 arrival threshold in FR-NAV-03, sufficient only to start guiding the user toward what was seen</li>
+          <li>The scan instruction must enqueue in SpeechQueue after the mandatory safety prompt (FR-UI-03), never interrupting it</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="req">
+      <div class="req-header">
+        <span class="req-id">FR-SCAN-02</span>
+        <span class="req-title">Gyroscope-gated capture during scan</span>
+        <span class="badge badge-mvp">MVP</span>
+      </div>
+      <div class="req-body">
+        Rotating the phone too quickly during scan phase produces blurred, unanalyzable frames. The app tracks yaw rate via <code>DeviceMotionEvent</code> and skips frame capture above 30°/s, speaking "A little slower." if the user hasn't been warned in the last 2.5 seconds.
+        <ul>
+          <li>Gyroscope gating applies only during scan phase. Explore and navigate phases never block on rotation speed.</li>
+          <li>On a device without <code>DeviceMotionEvent</code> support, the rotation check must always report "not too fast" so scan phase proceeds unblocked rather than stalling.</li>
+          <li>Initialize gyroscope listening inside the Start tap handler, not on page load — required for permission on some Android versions.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="req">
+      <div class="req-header">
+        <span class="req-id">FR-SCAN-03</span>
+        <span class="req-title">Scan timeout into explore phase</span>
+        <span class="badge badge-mvp">MVP</span>
+      </div>
+      <div class="req-body">
+        If the destination is not visible from the starting position (e.g. around a corner), the app must not give up. If 20 seconds elapse in scan phase without a destination match, the app automatically begins an <strong>explore phase</strong>: it speaks an explore announcement and switches the capture interval to 1000ms (1 fps), since the user is now walking rather than standing still.
+      </div>
+    </div>
+
+    <div class="req">
+      <div class="req-header">
+        <span class="req-id">FR-SCAN-04</span>
+        <span class="req-title">Explore phase guidance</span>
+        <span class="badge badge-mvp">MVP</span>
+      </div>
+      <div class="req-body">
+        In explore phase, Claude is asked to look for the destination first; if it isn't visible, it instead guides the user toward open navigable space (hallways, corridors) or directional signage so the user keeps moving through the building rather than stalling.
+        <ul>
+          <li><code>goal_confidence</code> distinguishes a true destination match (&ge;0.5, transitions to navigate phase) from general walking guidance toward navigable space (direction returned at confidence 0.0)</li>
+          <li>Obstacle alerts continue to fire during explore phase using the existing ObstacleRouter behavior (FR-OBS-01)</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="req">
+      <div class="req-header">
+        <span class="req-id">FR-SCAN-05</span>
+        <span class="req-title">Explore timeout failure</span>
+        <span class="badge badge-mvp">MVP</span>
+      </div>
+      <div class="req-body">
+        If 90 seconds elapse in explore phase without a destination match, the app speaks "I wasn't able to find [goal]. Please ask someone nearby for help." and performs a full Stop. The next Start always begins again in scan phase.
+      </div>
+    </div>
+
+    <h3 id="fr-obstacle">Obstacle Detection</h3>
+
+    <div class="req">
+      <div class="req-header">
+        <span class="req-id">FR-OBS-01</span>
+        <span class="req-title">Obstacle urgency tiers</span>
+        <span class="badge badge-mvp">MVP</span>
+      </div>
+      <div class="req-body">
+        The API returns obstacles as an array, each with a <code>urgency</code> field: <code>high</code>, <code>medium</code>, or <code>low</code>. Routing logic:
+        <ul>
+          <li><strong>High:</strong> Cancel current speech and speak obstacle alert immediately on the first frame. No confirmation delay — at 1 fps pipeline latency, introducing a 2-frame wait consumes the entire available safety window. Accept higher false positive rate as the correct tradeoff.</li>
+          <li><strong>Medium:</strong> Queue alert after current direction finishes speaking.</li>
+          <li><strong>Low:</strong> Log only. Do not speak.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="req">
+      <div class="req-header">
+        <span class="req-id">FR-OBS-02</span>
+        <span class="req-title">Obstacle alert language</span>
+        <span class="badge badge-mvp">MVP</span>
+      </div>
+      <div class="req-body">
+        Obstacle alerts must be short, directional, and action-oriented. Examples: "Stop — step ahead", "Chair on your left", "Door swinging open ahead". Maximum 8 words. Must not use "I see" or "it looks like".
+      </div>
+    </div>
+
+    <h3 id="fr-audio">Audio Output</h3>
+
+    <div class="req">
+      <div class="req-header">
+        <span class="req-id">FR-AUD-01</span>
+        <span class="req-title">TTS via Web Speech API</span>
+        <span class="badge badge-mvp">MVP</span>
+      </div>
+      <div class="req-body">
+        All spoken output uses <code>window.speechSynthesis</code>. Voice selection: prefer the first available <code>en-US</code> voice with <code>localService: true</code>. Fall back to default if unavailable.
+        <ul>
+          <li>Speech rate: 1.05 (slightly faster than default for navigation use)</li>
+          <li>Pitch: 1.0 (no modification)</li>
+          <li>Volume: 1.0</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="req">
+      <div class="req-header">
+        <span class="req-id">FR-AUD-02</span>
+        <span class="req-title">Silence fallback</span>
+        <span class="badge badge-mvp">MVP</span>
+      </div>
+      <div class="req-body">
+        If no API response is received within 3 seconds of a frame being sent, the app speaks "Still scanning" and continues the loop. This prevents unexplained silence. Maximum one "Still scanning" per 10 seconds.
+      </div>
+    </div>
+
+    <h3 id="fr-ui">UI &amp; Controls</h3>
+
+    <div class="req">
+      <div class="req-header">
+        <span class="req-id">FR-UI-01</span>
+        <span class="req-title">Minimal single-screen UI</span>
+        <span class="badge badge-mvp">MVP</span>
+      </div>
+      <div class="req-body">
+        The UI consists of: goal text input, microphone button for voice goal entry, Start/Stop button, a status indicator (scanning / navigating / arrived), and a last-spoken text display. No other interactive elements during navigation.
+        <ul>
+          <li>All tap targets minimum 56px height</li>
+          <li>High contrast: text on background must meet WCAG AA (4.5:1)</li>
+          <li>Font size: minimum 18px body, 24px for status</li>
+          <li>Microphone button must have <code>aria-label="Speak your destination"</code></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="req">
+      <div class="req-header">
+        <span class="req-id">FR-UI-02</span>
+        <span class="req-title">Screen reader compatibility</span>
+        <span class="badge badge-mvp">MVP</span>
+      </div>
+      <div class="req-body">
+        The app must be fully operable via TalkBack on Android Chrome without sighted assistance. All interactive elements must have appropriate ARIA labels. Status changes must be announced via <code>aria-live="assertive"</code> regions.
+      </div>
+    </div>
+
+    <div class="req">
+      <div class="req-header">
+        <span class="req-id">FR-UI-03</span>
+        <span class="req-title">Voice goal input via Web Speech Recognition</span>
+        <span class="badge badge-mvp">MVP</span>
+      </div>
+      <div class="req-body">
+        A microphone button on the pre-navigation screen activates <code>SpeechRecognition</code> (Chrome Web Speech API). The recognized text populates the goal field. The user confirms by tapping Start.
+        <ul>
+          <li>Use <code>webkitSpeechRecognition</code> with <code>lang: 'en-US'</code>, <code>interimResults: false</code>, <code>maxAlternatives: 1</code></li>
+          <li>While listening, speak "Listening..." and show visual indicator</li>
+          <li>On recognition result, populate text field and speak back the recognized text: "I heard: [goal]. Tap Start to begin."</li>
+          <li>On recognition error or no-result, speak "Didn't catch that. Please try again or type your destination."</li>
+          <li>If <code>SpeechRecognition</code> is unavailable (non-Chrome browser), hide mic button and use text-only input silently</li>
+          <li><strong>Safety prompt (mandatory):</strong> When Start is tapped, before the navigation loop begins, speak: "VisionGuide is a navigation aid only. Keep using your cane or other mobility aid." Plays once per calendar day, on the first Start of that day; cannot be skipped on that first play. Subsequent Starts the same day proceed directly to the scan instruction (see FR-SCAN-01) without replaying it.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- S6: Non-functional requirements -->
+  <section class="section" id="s6">
+    <div class="section-header">
+      <span class="section-number">06</span>
+      <h2 class="section-title">Non-Functional Requirements</h2>
+    </div>
+
+    <table>
+      <thead><tr><th>ID</th><th>Category</th><th>Requirement</th><th>Threshold</th></tr></thead>
+      <tbody>
+        <tr><td>NFR-01</td><td>Latency</td><td>Frame-to-speech time (p50)</td><td>&le;3 seconds</td></tr>
+        <tr><td>NFR-02</td><td>Latency</td><td>Frame-to-speech time (p95)</td><td>&le;5 seconds</td></tr>
+        <tr><td>NFR-03</td><td>Reliability</td><td>API error rate during demo</td><td>&le;5%</td></tr>
+        <tr><td>NFR-04</td><td>Reliability</td><td>Session uptime without restart</td><td>&ge;10 minutes</td></tr>
+        <tr><td>NFR-05</td><td>Performance</td><td>Browser memory over 10 min session</td><td>&le;200 MB</td></tr>
+        <tr><td>NFR-06</td><td>Accessibility</td><td>WCAG 2.1 AA compliance</td><td>All UI elements</td></tr>
+        <tr><td>NFR-07</td><td>Cost</td><td>API spend cap</td><td>Set a $5.00 hard monthly spend limit in the Anthropic console under Billing &gt; Usage limits before demo day. This enforces the cap server-side with no application code required. Monitor daily via the dashboard.</td></tr>
+        <tr><td>NFR-08</td><td>Compatibility</td><td>Target browser</td><td>Chrome 120+ on Android 10+</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- S7: Out of scope -->
+  <section class="section" id="s7">
+    <div class="section-header">
+      <span class="section-number">07</span>
+      <h2 class="section-title">Out of Scope (MVP)</h2>
+    </div>
+
+    <table>
+      <thead><tr><th>Feature</th><th>Reason deferred</th></tr></thead>
+      <tbody>
+        <tr><td>iOS / Safari support</td><td>Web Speech API and camera constraints on iOS Safari are unreliable; not worth the debugging time in 4 weeks</td></tr>
+        <tr><td>Multi-floor navigation</td><td>Requires floor context persistence and elevator/stair tracking logic beyond MVP scope</td></tr>
+        <tr><td>Pre-mapped floor plans</td><td>Requires building-specific data pipeline and storage infrastructure</td></tr>
+        <tr><td>Bluetooth / NFC beacons</td><td>Requires physical hardware deployment; contradicts zero-infrastructure principle</td></tr>
+        <tr><td>User accounts / history</td><td>No auth, no DB, no session persistence needed for demo</td></tr>
+        <tr><td>Haptic feedback</td><td>Not available via Web APIs</td></tr>
+        <tr><td>Offline operation</td><td>Claude Vision requires network; on-device models not in scope</td></tr>
+        <tr><td>Object descriptions on demand</td><td>Distinct interaction model from navigation; separate feature</td></tr>
+      </tbody>
+    </table>
+
+    <div class="callout callout-warn">
+      <strong>Scope discipline:</strong> Any request to add features from this list during the 4-week build must go through explicit team agreement. The default answer is no.
+    </div>
+  </section>
+
+  <!-- S8: System Architecture -->
+  <section class="section" id="s8">
+    <div class="section-header">
+      <span class="section-number">08</span>
+      <h2 class="section-title">System Architecture</h2>
+    </div>
+
+    <p>VisionGuide is a two-layer system: a browser client and the Anthropic Claude Vision API. The browser calls Anthropic directly using a key stored in a <code>.env</code> file. There is no proxy, no server, and no deployment infrastructure beyond static file hosting.</p>
+
+    <div class="diagram-wrap">
+      <svg width="100%" viewBox="0 0 760 500" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="VisionGuide system architecture showing browser, Vercel proxy, and Claude API layers">
+        <defs>
+          <marker id="arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M2 1L8 5L2 9" fill="none" stroke="#888" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </marker>
+          <marker id="arr-acc" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M2 1L8 5L2 9" fill="none" stroke="#1a4fd6" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </marker>
+        </defs>
+
+        <!-- Layer 1: Browser -->
+        <rect x="20" y="10" width="720" height="170" rx="10" fill="#f7f6f2" stroke="#d8d5ce" stroke-width="1" stroke-dasharray="5 3"/>
+        <text x="36" y="30" font-family="system-ui,sans-serif" font-size="11" fill="#777" font-weight="600" letter-spacing="1">BROWSER — CHROME ON ANDROID</text>
+
+        <!-- Camera box -->
+        <rect x="40" y="44" width="130" height="120" rx="8" fill="#e8edfb" stroke="#1a4fd6" stroke-width="1"/>
+        <text x="105" y="97" font-family="system-ui,sans-serif" font-size="13" fill="#1a4fd6" font-weight="600" text-anchor="middle">Camera</text>
+        <text x="105" y="115" font-family="system-ui,sans-serif" font-size="11" fill="#444" text-anchor="middle">getUserMedia</text>
+        <text x="105" y="132" font-family="system-ui,sans-serif" font-size="11" fill="#444" text-anchor="middle">1 fps capture</text>
+
+        <!-- Canvas box -->
+        <rect x="210" y="44" width="130" height="120" rx="8" fill="#eceae4" stroke="#aaa" stroke-width="1"/>
+        <text x="275" y="97" font-family="system-ui,sans-serif" font-size="13" fill="#333" font-weight="600" text-anchor="middle">Canvas</text>
+        <text x="275" y="115" font-family="system-ui,sans-serif" font-size="11" fill="#444" text-anchor="middle">toDataURL JPEG</text>
+        <text x="275" y="132" font-family="system-ui,sans-serif" font-size="11" fill="#444" text-anchor="middle">640×480 @ 70%</text>
+
+        <!-- App state box -->
+        <rect x="380" y="44" width="150" height="120" rx="8" fill="#f0ebfb" stroke="#7a3fbf" stroke-width="1"/>
+        <text x="455" y="90" font-family="system-ui,sans-serif" font-size="13" fill="#5a2a9f" font-weight="600" text-anchor="middle">React App</text>
+        <text x="455" y="108" font-family="system-ui,sans-serif" font-size="11" fill="#444" text-anchor="middle">goal, context</text>
+        <text x="455" y="124" font-family="system-ui,sans-serif" font-size="11" fill="#444" text-anchor="middle">pending flag</text>
+        <text x="455" y="140" font-family="system-ui,sans-serif" font-size="11" fill="#444" text-anchor="middle">speech queue</text>
+
+        <!-- TTS box -->
+        <rect x="575" y="44" width="140" height="120" rx="8" fill="#e8edfb" stroke="#1a4fd6" stroke-width="1"/>
+        <text x="645" y="97" font-family="system-ui,sans-serif" font-size="13" fill="#1a4fd6" font-weight="600" text-anchor="middle">Web Speech</text>
+        <text x="645" y="115" font-family="system-ui,sans-serif" font-size="11" fill="#444" text-anchor="middle">speechSynthesis</text>
+        <text x="645" y="132" font-family="system-ui,sans-serif" font-size="11" fill="#444" text-anchor="middle">interrupt / queue</text>
+
+        <!-- Browser arrows -->
+        <line x1="170" y1="104" x2="208" y2="104" stroke="#888" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="340" y1="104" x2="378" y2="104" stroke="#888" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="530" y1="104" x2="573" y2="104" stroke="#888" stroke-width="1.5" marker-end="url(#arr)"/>
+
+        <!-- Layer 2: Anthropic -->
+        <rect x="20" y="210" width="720" height="100" rx="10" fill="#f7f6f2" stroke="#d8d5ce" stroke-width="1" stroke-dasharray="5 3"/>
+        <text x="36" y="230" font-family="system-ui,sans-serif" font-size="11" fill="#777" font-weight="600" letter-spacing="1">ANTHROPIC API</text>
+
+        <rect x="210" y="244" width="340" height="55" rx="8" fill="#fdeee8" stroke="#b84c00" stroke-width="1"/>
+        <text x="380" y="266" font-family="system-ui,sans-serif" font-size="13" fill="#b84c00" font-weight="600" text-anchor="middle">Claude Vision (claude-sonnet-4-6)</text>
+        <text x="380" y="285" font-family="system-ui,sans-serif" font-size="11" fill="#444" text-anchor="middle">Scene analysis · OCR · Direction generation</text>
+
+        <!-- App to Claude direct -->
+        <line x1="455" y1="164" x2="455" y2="200" stroke="#888" stroke-width="1.5"/>
+        <line x1="455" y1="200" x2="382" y2="200" stroke="#888" stroke-width="1.5"/>
+        <line x1="382" y1="200" x2="382" y2="242" stroke="#888" stroke-width="1.5" marker-end="url(#arr)"/>
+        <text x="430" y="196" font-family="system-ui,sans-serif" font-size="10" fill="#777" text-anchor="middle">POST — VITE_ANTHROPIC_API_KEY in header</text>
+
+        <!-- Claude to app (dashed return) -->
+        <line x1="378" y1="242" x2="378" y2="202" stroke="#1a4fd6" stroke-width="1" stroke-dasharray="4 2" marker-end="url(#arr-acc)"/>
+        <text x="340" y="228" font-family="system-ui,sans-serif" font-size="10" fill="#1a4fd6" text-anchor="middle">JSON</text>
+
+        <!-- hosting note -->
+        <text x="380" y="336" font-family="system-ui,sans-serif" font-size="11" fill="#aaa" text-anchor="middle">Static files served from Vercel or any CDN. No serverless functions. API key in .env, never committed to git.</text>
+      </svg>
+      <div class="diagram-caption">Figure 1 — System architecture: two layers, browser calls Anthropic directly</div>
+    </div>
+  </section>
+
+  <!-- S9: API Contract -->
+  <section class="section" id="s9">
+    <div class="section-header">
+      <span class="section-number">09</span>
+      <h2 class="section-title">API Contract</h2>
+    </div>
+
+    <h3>Claude Vision prompt (system)</h3>
+    <div class="code-block">
+<span class="comment">// System prompt — sent with every request</span>
+<span class="str">You are an indoor navigation assistant for visually impaired users.
+Analyze the image and return ONLY valid JSON. No preamble, no markdown.
+Structure:
+{
+  "obstacles": [
+    {
+      "type": string,       // e.g. "chair", "step", "door"
+      "direction": string,  // e.g. "left", "center", "right"
+      "urgency": "high" | "medium" | "low"
+    }
+  ],
+  "navigation_direction": string,  // max 15 words, action-oriented
+  "goal_found": boolean,
+  "goal_confidence": number        // 0.0 to 1.0
+}
+
+Rules:
+- Use direction words: left, right, ahead, behind. Never compass directions.
+- navigation_direction must be actionable: "Move forward", "Turn left at the door".
+- obstacle urgency=high only if within 1 metre and on the user path.
+- If goal is not visible, goal_found=false, goal_confidence=0.
+- Do NOT include scene descriptions or commentary. Navigation output only.
+- Return valid JSON only. Nothing else.</span>
+    </div>
+
+    <h3>Claude Vision prompt (user message)</h3>
+    <div class="code-block">
+<span class="comment">// User message — assembled per frame</span>
+{
+  <span class="key">"role"</span>: <span class="str">"user"</span>,
+  <span class="key">"content"</span>: [
+    {
+      <span class="key">"type"</span>: <span class="str">"text"</span>,
+      <span class="key">"text"</span>: <span class="str">"Goal: {userGoal}\nPrior context: {lastTwoDirections}\nAnalyze this frame."</span>
+    },
+    {
+      <span class="key">"type"</span>: <span class="str">"image"</span>,
+      <span class="key">"source"</span>: {
+        <span class="key">"type"</span>: <span class="str">"base64"</span>,
+        <span class="key">"media_type"</span>: <span class="str">"image/jpeg"</span>,
+        <span class="key">"data"</span>: <span class="str">"{base64Frame}"</span>
+      }
+    }
+  ]
+}
+    </div>
+
+    <h3>Direct API call from browser</h3>
+    <div class="code-block"><span class="kw">const</span> response = <span class="kw">await</span> fetch(<span class="str">"https://api.anthropic.com/v1/messages"</span>, {
+  <span class="key">method</span>: <span class="str">"POST"</span>,
+  <span class="key">headers</span>: {
+    <span class="str">"x-api-key"</span>: import.meta.env.VITE_ANTHROPIC_API_KEY,
+    <span class="str">"anthropic-version"</span>: <span class="str">"2023-06-01"</span>,
+    <span class="str">"anthropic-dangerous-direct-browser-access"</span>: <span class="str">"true"</span>,
+    <span class="str">"content-type"</span>: <span class="str">"application/json"</span>
+  },
+  <span class="key">body</span>: JSON.stringify({
+    <span class="key">model</span>: <span class="str">"claude-sonnet-4-6"</span>,
+    <span class="key">max_tokens</span>: <span class="num">300</span>,
+    <span class="key">system</span>: buildSystemPrompt(<span class="str">'navigation'</span>),
+    <span class="key">messages</span>: [buildUserMessage(goal, context, frame)]
+  })
+});
+<span class="kw">const</span> data = <span class="kw">await</span> response.json();
+<span class="kw">const</span> parsed = JSON.parse(data.content[<span class="num">0</span>].text);</div>
+
+    <div class="callout callout-warn">
+      <strong>Note:</strong> The <code>anthropic-dangerous-direct-browser-access</code> header is required for browser-to-API calls. The API key is stored in <code>.env</code> as <code>VITE_ANTHROPIC_API_KEY</code> and must never be committed to git. Add <code>.env</code> to <code>.gitignore</code> on day 1.
+    </div>
+
+    <h3>Expected Claude response (example)</h3>
+    <div class="code-block">{
+  <span class="key">"obstacles"</span>: [
+    {
+      <span class="key">"type"</span>: <span class="str">"chair"</span>,
+      <span class="key">"direction"</span>: <span class="str">"left"</span>,
+      <span class="key">"urgency"</span>: <span class="str">"medium"</span>
+    }
+  ],
+  <span class="key">"navigation_direction"</span>: <span class="str">"Move forward through the open door ahead."</span>,
+  <span class="key">"goal_found"</span>: <span class="kw">false</span>,
+  <span class="key">"goal_confidence"</span>: <span class="num">0.1</span>
+}</div>
+  </section>
+
+  <!-- S10: Component Specs -->
+  <section class="section" id="s10">
+    <div class="section-header">
+      <span class="section-number">10</span>
+      <h2 class="section-title">Component Specifications</h2>
+    </div>
+
+    <h3>CameraStream</h3>
+    <p>Initializes <code>getUserMedia</code>, renders stream to <code>&lt;video&gt;</code>, requests WakeLock. Exposes <code>getFrame(): string</code> which draws to canvas and returns base64 JPEG.</p>
+
+    <h3>NavigationLoop</h3>
+    <p>Owns the <code>setInterval</code> and the <code>scan → explore → navigate</code> phase state machine (FR-SCAN-01–05). Phase determines the capture interval (500ms scan, 1000ms explore/navigate), which prompt is sent, whether gyroscope gating applies (scan only), and the confidence threshold for transitioning toward the destination. Checks <code>pending</code> flag before calling. Calls <code>CameraStream.getFrame()</code>, assembles payload, POSTs directly to <code>https://api.anthropic.com/v1/messages</code> with the key from <code>import.meta.env.VITE_ANTHROPIC_API_KEY</code>, sets <code>pending = false</code> on resolution. Drops response if frame was captured more than 1500ms ago. Phase resets to <code>scan</code> on every Stop.</p>
+
+    <h3>Gyroscope</h3>
+    <p>Singleton wrapping <code>DeviceMotionEvent</code>, used only during scan phase. Initialized inside the Start tap handler, not on page load. Exposes <code>isRotatingTooFast()</code> (true above 30°/s yaw rate; always <code>false</code> if <code>DeviceMotionEvent</code> is unavailable, so scan phase is never blocked on unsupported devices) and <code>shouldWarnRotationSpeed()</code> (debounced to at most once per 2.5 seconds).</p>
+
+    <h3>ObstacleRouter</h3>
+    <p>Receives parsed JSON. Maintains a <code>consecutiveHighCount</code> counter. On <code>urgency: high</code>, increments counter; fires interrupt only when counter reaches 2. Resets counter on any non-high frame. Medium urgency enqueues. Low urgency discards.</p>
+
+    <h3>SpeechQueue</h3>
+    <p>Wraps <code>speechSynthesis</code>. Exposes <code>speak(text, interrupt = false)</code>. When <code>interrupt = true</code>, calls <code>speechSynthesis.cancel()</code> first. Tracks last spoken text and timestamp to enforce deduplication (no repeat within 10s).</p>
+
+    <h3>GoalTracker</h3>
+    <p>Maintains <code>consecutiveGoalFoundCount</code>. Increments on <code>goal_found: true &amp;&amp; goal_confidence &ge; 0.8</code>. When count reaches 2, fires arrival event and stops NavigationLoop.</p>
+
+  </section>
+
+  <!-- S11: Data flow -->
+  <section class="section" id="s11">
+    <div class="section-header">
+      <span class="section-number">11</span>
+      <h2 class="section-title">Data Flow</h2>
+    </div>
+
+    <p>The processing loop runs once per second. Each cycle is a complete pipeline from frame capture to spoken output.</p>
+
+    <div class="diagram-wrap">
+      <svg width="100%" viewBox="0 0 760 560" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="VisionGuide core processing loop flowchart">
+        <defs>
+          <marker id="arr2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M2 1L8 5L2 9" fill="none" stroke="#888" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </marker>
+        </defs>
+
+        <!-- Start -->
+        <rect x="290" y="16" width="180" height="40" rx="20" fill="#eceae4" stroke="#aaa" stroke-width="1"/>
+        <text x="380" y="41" font-family="system-ui,sans-serif" font-size="13" fill="#333" font-weight="600" text-anchor="middle">User sets goal</text>
+
+        <!-- 1fps interval -->
+        <rect x="230" y="82" width="300" height="56" rx="8" fill="#e8edfb" stroke="#1a4fd6" stroke-width="1"/>
+        <text x="380" y="104" font-family="system-ui,sans-serif" font-size="13" fill="#1a4fd6" font-weight="600" text-anchor="middle">setInterval — 1 fps</text>
+        <text x="380" y="123" font-family="system-ui,sans-serif" font-size="11" fill="#444" text-anchor="middle">drawImage → toDataURL → base64</text>
+
+        <!-- Pending check -->
+        <rect x="230" y="166" width="300" height="56" rx="8" fill="#fff2ea" stroke="#b84c00" stroke-width="1"/>
+        <text x="380" y="188" font-family="system-ui,sans-serif" font-size="13" fill="#b84c00" font-weight="600" text-anchor="middle">Prior call pending?</text>
+        <text x="380" y="207" font-family="system-ui,sans-serif" font-size="11" fill="#444" text-anchor="middle">Yes → drop frame and wait</text>
+
+        <!-- POST -->
+        <rect x="230" y="250" width="300" height="56" rx="8" fill="#eceae4" stroke="#aaa" stroke-width="1"/>
+        <text x="380" y="272" font-family="system-ui,sans-serif" font-size="13" fill="#333" font-weight="600" text-anchor="middle">POST to Anthropic API</text>
+        <text x="380" y="291" font-family="system-ui,sans-serif" font-size="11" fill="#444" text-anchor="middle">frame + goal + last 2 responses</text>
+
+        <!-- Parse -->
+        <rect x="230" y="334" width="300" height="56" rx="8" fill="#f0ebfb" stroke="#7a3fbf" stroke-width="1"/>
+        <text x="380" y="356" font-family="system-ui,sans-serif" font-size="13" fill="#5a2a9f" font-weight="600" text-anchor="middle">Parse JSON response</text>
+        <text x="380" y="375" font-family="system-ui,sans-serif" font-size="11" fill="#444" text-anchor="middle">obstacles · direction · goal_found</text>
+
+        <!-- Three outputs -->
+        <rect x="40" y="424" width="180" height="56" rx="8" fill="#fff2ea" stroke="#b84c00" stroke-width="1"/>
+        <text x="130" y="445" font-family="system-ui,sans-serif" font-size="13" fill="#b84c00" font-weight="600" text-anchor="middle">Obstacle router</text>
+        <text x="130" y="464" font-family="system-ui,sans-serif" font-size="11" fill="#444" text-anchor="middle">high → interrupt TTS</text>
+
+        <rect x="290" y="424" width="180" height="56" rx="8" fill="#e8edfb" stroke="#1a4fd6" stroke-width="1"/>
+        <text x="380" y="445" font-family="system-ui,sans-serif" font-size="13" fill="#1a4fd6" font-weight="600" text-anchor="middle">Speech queue</text>
+        <text x="380" y="464" font-family="system-ui,sans-serif" font-size="11" fill="#444" text-anchor="middle">speak direction</text>
+
+        <rect x="540" y="424" width="180" height="56" rx="8" fill="#eceae4" stroke="#aaa" stroke-width="1"/>
+        <text x="630" y="445" font-family="system-ui,sans-serif" font-size="13" fill="#333" font-weight="600" text-anchor="middle">Goal tracker</text>
+        <text x="630" y="464" font-family="system-ui,sans-serif" font-size="11" fill="#444" text-anchor="middle">2× found → stop</text>
+
+        <!-- Arrows -->
+        <line x1="380" y1="56" x2="380" y2="80" stroke="#888" stroke-width="1.5" marker-end="url(#arr2)"/>
+        <line x1="380" y1="138" x2="380" y2="164" stroke="#888" stroke-width="1.5" marker-end="url(#arr2)"/>
+        <line x1="380" y1="222" x2="380" y2="248" stroke="#888" stroke-width="1.5" marker-end="url(#arr2)"/>
+        <line x1="380" y1="306" x2="380" y2="332" stroke="#888" stroke-width="1.5" marker-end="url(#arr2)"/>
+
+        <!-- Parse to three outputs -->
+        <line x1="380" y1="390" x2="380" y2="408" stroke="#888" stroke-width="1.5"/>
+        <line x1="130" y1="408" x2="630" y2="408" stroke="#888" stroke-width="1.5"/>
+        <line x1="130" y1="408" x2="130" y2="422" stroke="#888" stroke-width="1.5" marker-end="url(#arr2)"/>
+        <line x1="380" y1="408" x2="380" y2="422" stroke="#888" stroke-width="1.5" marker-end="url(#arr2)"/>
+        <line x1="630" y1="408" x2="630" y2="422" stroke="#888" stroke-width="1.5" marker-end="url(#arr2)"/>
+
+        <!-- Loop back from pending check -->
+        <line x1="230" y1="194" x2="80" y2="194" stroke="#aaa" stroke-width="1" stroke-dasharray="4 2"/>
+        <line x1="80" y1="194" x2="80" y2="110" stroke="#aaa" stroke-width="1" stroke-dasharray="4 2"/>
+        <line x1="80" y1="110" x2="228" y2="110" stroke="#aaa" stroke-width="1" stroke-dasharray="4 2" marker-end="url(#arr2)"/>
+        <text x="44" y="160" font-family="system-ui,sans-serif" font-size="10" fill="#aaa" text-anchor="middle">drop</text>
+        <text x="44" y="172" font-family="system-ui,sans-serif" font-size="10" fill="#aaa" text-anchor="middle">frame</text>
+
+        <!-- Loop back from speech queue -->
+        <line x1="380" y1="480" x2="380" y2="500" stroke="#aaa" stroke-width="1" stroke-dasharray="4 2"/>
+        <line x1="380" y1="500" x2="660" y2="500" stroke="#aaa" stroke-width="1" stroke-dasharray="4 2"/>
+        <line x1="660" y1="500" x2="660" y2="110" stroke="#aaa" stroke-width="1" stroke-dasharray="4 2"/>
+        <line x1="660" y1="110" x2="532" y2="110" stroke="#aaa" stroke-width="1" stroke-dasharray="4 2" marker-end="url(#arr2)"/>
+        <text x="704" y="300" font-family="system-ui,sans-serif" font-size="10" fill="#aaa" text-anchor="middle">loop</text>
+      </svg>
+      <div class="diagram-caption">Figure 2 — Core processing loop: 1 frame per second, stale frame guard, three-way output routing</div>
+    </div>
+  </section>
+
+  <!-- S12: Sprint Breakdown -->
+  <section class="section" id="s12">
+    <div class="section-header">
+      <span class="section-number">12</span>
+      <h2 class="section-title">Sprint Breakdown</h2>
+    </div>
+
+    <div class="sprint-grid">
+
+      <div class="sprint-card">
+        <div class="sprint-number">Week 1</div>
+        <div class="sprint-title">Foundation</div>
+        <ul class="sprint-tasks">
+          <li><span class="task-dot"></span>Vite + React project scaffolded, deployed to Vercel as static site on day 1</li>
+          <li><span class="task-dot"></span>VITE_ANTHROPIC_API_KEY in .env, .env added to .gitignore immediately</li>
+          <li><span class="task-dot"></span>Camera stream via getUserMedia rendering to hidden video element</li>
+          <li><span class="task-dot"></span>Canvas frame extraction returning base64 JPEG</li>
+          <li><span class="task-dot"></span>Direct browser fetch to Anthropic API with static test image, JSON response logged to console</li>
+          <li><span class="task-dot"></span>Basic speechSynthesis playing hardcoded text</li>
+        </ul>
+        <div class="sprint-deliverable">Deliverable: camera stream visible, direct API call returns Claude JSON, text spoken</div>
+      </div>
+
+      <div class="sprint-card">
+        <div class="sprint-number">Week 2</div>
+        <div class="sprint-title">Core Loop</div>
+        <ul class="sprint-tasks">
+          <li><span class="task-dot"></span>NavigationLoop: setInterval at 1000ms, pending flag guard</li>
+          <li><span class="task-dot"></span>Live frame → Anthropic API → parse → speak pipeline end-to-end</li>
+          <li><span class="task-dot"></span>Goal text input field wired to app state</li>
+          <li><span class="task-dot"></span>ObstacleRouter: urgency tiers, 2-frame confirmation for high</li>
+          <li><span class="task-dot"></span>SpeechQueue: interrupt vs queue logic</li>
+          <li><span class="task-dot"></span>GoalTracker: 2-frame arrival confirmation, loop stop</li>
+          <li><span class="task-dot"></span>WakeLock API integration</li>
+        </ul>
+        <div class="sprint-deliverable">Deliverable: point phone at room, hear spoken navigation direction</div>
+      </div>
+
+      <div class="sprint-card">
+        <div class="sprint-number">Week 3</div>
+        <div class="sprint-title">Reliability &amp; UX</div>
+        <ul class="sprint-tasks">
+          <li><span class="task-dot"></span>Context window: last 2 responses included in each API call</li>
+          <li><span class="task-dot"></span>Deduplication: no repeat direction within 10 seconds</li>
+          <li><span class="task-dot"></span>Silence fallback: "Still scanning" after 3s timeout</li>
+          <li><span class="task-dot"></span>Stale frame guard: drop responses older than 1500ms</li>
+          <li><span class="task-dot"></span>Error handling: API failures speak fallback, retry next cycle</li>
+          <li><span class="task-dot"></span>UI: Start/Stop button, status indicator, last-spoken display</li>
+          <li><span class="task-dot"></span>Accessibility audit: ARIA labels, aria-live regions, TalkBack test</li>
+          <li><span class="task-dot"></span>WCAG AA contrast check on all UI elements</li>
+        </ul>
+        <div class="sprint-deliverable">Deliverable: stable 5-minute session, no crashes, no unexplained silence</div>
+      </div>
+
+      <div class="sprint-card">
+        <div class="sprint-number">Week 4</div>
+        <div class="sprint-title">Polish &amp; Demo</div>
+        <ul class="sprint-tasks">
+          <li><span class="task-dot"></span>Prompt tuning against real environments: office, corridor, apartment</li>
+          <li><span class="task-dot"></span>Reduce obstacle false positives (2-frame confirmation already in place)</li>
+          <li><span class="task-dot"></span>Tune goal_confidence threshold with real test data</li>
+          <li><span class="task-dot"></span>Onboarding: first-run voice instruction on how to hold phone</li>
+          <li><span class="task-dot"></span>Demo environment test: hospital corridor simulation</li>
+          <li><span class="task-dot"></span>Record 3-minute demo video</li>
+          <li><span class="task-dot"></span>Prepare pitch slide deck</li>
+          <li><span class="task-dot"></span>Final Vercel deploy, shareable URL confirmed working</li>
+        </ul>
+        <div class="sprint-deliverable">Deliverable: demo-ready, shareable URL, works on any Chrome Android device</div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- S13: Acceptance Criteria -->
+  <section class="section" id="s13">
+    <div class="section-header">
+      <span class="section-number">13</span>
+      <h2 class="section-title">Acceptance Criteria</h2>
+    </div>
+
+    <div class="callout callout-info">
+      All acceptance criteria below must pass before the build is considered demo-ready. Each maps to a functional requirement.
+    </div>
+
+    <h3>Camera &amp; Vision</h3>
+    <ul class="ac-list">
+      <li><span class="ac-check"></span><strong>AC-CAM-01:</strong> On page load, browser prompts for camera permission. Granting permission starts video stream within 2 seconds.</li>
+      <li><span class="ac-check"></span><strong>AC-CAM-02:</strong> Denying camera permission causes app to speak "Camera access is required. Please allow camera in browser settings." and display written instructions.</li>
+      <li><span class="ac-check"></span><strong>AC-CAM-03:</strong> Frame is captured at 640×480 JPEG, base64-encoded, and included in an Anthropic API request within 100ms of interval tick.</li>
+      <li><span class="ac-check"></span><strong>AC-CAM-04:</strong> If a prior API call is pending, frame is silently dropped and no new request is made.</li>
+      <li><span class="ac-check"></span><strong>AC-CAM-05:</strong> WakeLock is acquired on session start. Screen does not sleep during a 10-minute active session.</li>
+    </ul>
+
+    <h3>Navigation</h3>
+    <ul class="ac-list">
+      <li><span class="ac-check"></span><strong>AC-NAV-01:</strong> User types a goal and taps Start. The goal string is included in every subsequent API call for the session.</li>
+      <li><span class="ac-check"></span><strong>AC-NAV-02:</strong> Navigation direction is spoken within 3 seconds (p50) of frame capture.</li>
+      <li><span class="ac-check"></span><strong>AC-NAV-03:</strong> The same direction is not spoken twice within 10 seconds.</li>
+      <li><span class="ac-check"></span><strong>AC-NAV-04:</strong> When goal_found=true and goal_confidence≥0.8 in two consecutive frames, app speaks "You have arrived at [goal]" and stops the loop.</li>
+      <li><span class="ac-check"></span><strong>AC-NAV-05:</strong> After arrival, no further API calls are made until the user restarts.</li>
+    </ul>
+
+    <h3>Scan &amp; Explore Phases</h3>
+    <ul class="ac-list">
+      <li><span class="ac-check"></span><strong>AC-SCAN-01:</strong> Tapping Start always plays the scan instruction before any navigation direction is spoken. On the first Start of the calendar day, the safety prompt plays first; on later Starts that same day, the scan instruction plays directly without the safety prompt repeating.</li>
+      <li><span class="ac-check"></span><strong>AC-SCAN-02:</strong> Rotating the phone faster than 30°/s during scan phase suppresses frame analysis and triggers "A little slower.", spoken no more than once per 2.5 seconds.</li>
+      <li><span class="ac-check"></span><strong>AC-SCAN-03:</strong> When the destination or a relevant sign enters frame while rotating slowly, the app speaks the navigation direction within 2–3 frames and switches to navigate phase at 1 fps.</li>
+      <li><span class="ac-check"></span><strong>AC-SCAN-04:</strong> An obstacle detected during scan phase fires the existing obstacle alert without exiting scan phase.</li>
+      <li><span class="ac-check"></span><strong>AC-SCAN-05:</strong> If no destination match occurs within 20 seconds of scan phase starting, the app automatically begins explore phase without user input and without stopping.</li>
+      <li><span class="ac-check"></span><strong>AC-SCAN-06:</strong> During explore phase, the app gives walking guidance toward open space or signage at 1 fps, and transitions to navigate phase as soon as the destination becomes visible.</li>
+      <li><span class="ac-check"></span><strong>AC-SCAN-07:</strong> If explore phase exceeds 90 seconds without a destination match, the app speaks the failure message and performs a full Stop.</li>
+      <li><span class="ac-check"></span><strong>AC-SCAN-08:</strong> Tapping Stop during scan or explore phase halts the loop cleanly with no further speech; the next Start always begins again in scan phase.</li>
+    </ul>
+
+    <h3>Obstacle Detection</h3>
+    <ul class="ac-list">
+      <li><span class="ac-check"></span><strong>AC-OBS-01:</strong> A high-urgency obstacle returned in two consecutive frames causes current speech to be cancelled and the obstacle alert to be spoken immediately.</li>
+      <li><span class="ac-check"></span><strong>AC-OBS-02:</strong> A medium-urgency obstacle is spoken after current navigation direction completes, not interrupting it.</li>
+      <li><span class="ac-check"></span><strong>AC-OBS-03:</strong> A single high-urgency frame (not confirmed by a second) does not trigger an interrupt.</li>
+      <li><span class="ac-check"></span><strong>AC-OBS-04:</strong> Obstacle alert text is 8 words or fewer and contains a direction word.</li>
+    </ul>
+
+    <h3>Audio</h3>
+    <ul class="ac-list">
+      <li><span class="ac-check"></span><strong>AC-AUD-01:</strong> If no API response arrives within 3 seconds of a frame being sent, app speaks "Still scanning".</li>
+      <li><span class="ac-check"></span><strong>AC-AUD-02:</strong> "Still scanning" is not spoken more than once per 10 seconds.</li>
+      <li><span class="ac-check"></span><strong>AC-AUD-03:</strong> All spoken text is audible at phone default volume in a moderately noisy environment.</li>
+    </ul>
+
+    <h3>UI &amp; Accessibility</h3>
+    <ul class="ac-list">
+      <li><span class="ac-check"></span><strong>AC-UI-01:</strong> All tap targets are at minimum 56×56px.</li>
+      <li><span class="ac-check"></span><strong>AC-UI-02:</strong> Goal input field is focused on page load when using TalkBack.</li>
+      <li><span class="ac-check"></span><strong>AC-UI-03:</strong> Status changes ("Scanning", "Arrived") are announced by TalkBack without user interaction.</li>
+      <li><span class="ac-check"></span><strong>AC-UI-04:</strong> All text meets WCAG AA contrast ratio (4.5:1 minimum).</li>
+      <li><span class="ac-check"></span><strong>AC-UI-05:</strong> App is fully operable via TalkBack without sighted assistance (verified by manual test).</li>
+    </ul>
+
+    <h3>Reliability</h3>
+    <ul class="ac-list">
+      <li><span class="ac-check"></span><strong>AC-REL-01:</strong> App runs without JS error or silent failure for a 10-minute session.</li>
+      <li><span class="ac-check"></span><strong>AC-REL-02:</strong> On API error (non-200 response), app speaks "Still scanning" and resumes the loop on the next tick.</li>
+    </ul>
+  </section>
+
+  <!-- S14: Risks -->
+  <section class="section" id="s14">
+    <div class="section-header">
+      <span class="section-number">14</span>
+      <h2 class="section-title">Risks &amp; Mitigations</h2>
+    </div>
+
+    <table>
+      <thead><tr><th>ID</th><th>Risk</th><th>Severity</th><th>Mitigation</th></tr></thead>
+      <tbody class="risk-high">
+        <tr><td>R-01</td><td>Claude Vision latency exceeds 5s per call, making guidance feel stale</td><td>High</td><td>Drop responses older than 4500ms. Use silence fallback. Set max_tokens to 500 (not 300 — truncated JSON at 300 tokens causes silent parse failures mid-session).</td></tr>
+        <tr><td>R-02</td><td>speechSynthesis.cancel() fails silently on some Android builds, leaving queued speech playing through obstacle alerts</td><td>High</td><td>Test cancel() on target device on day 1 — speak a 10-second utterance and interrupt it. If cancel() fails, apply rate=10 workaround: after cancel(), immediately queue a silent utterance at rate=10 to flush the speech queue. See speech.js spec. Also test TalkBack compatibility separately.</td></tr>
+      </tbody>
+      <tbody class="risk-med">
+        <tr><td>R-03</td><td>Camera stream drops or freezes mid-session</td><td>Medium</td><td>Detect frozen frames by comparing consecutive base64 strings. Re-initialize stream on freeze detection.</td></tr>
+        <tr><td>R-04</td><td>Claude hallucinates high-urgency obstacles that don't exist, causing alarm fatigue</td><td>Medium</td><td>High-urgency fires on first frame (2-frame confirmation removed — latency math makes it unsafe). Mitigate false positives via prompt tuning: require Claude to specify direction and proximity before classifying high urgency. Tune in Week 4 against real environment.</td></tr>
+        <tr><td>R-05</td><td>API cost overruns during extended testing</td><td>Medium</td><td>Monitor spend in Anthropic dashboard daily. At 1 req/s, a 10-minute session costs ~$0.18. $5/day budget covers ~27 minutes of active use.</td></tr>
+        <tr><td>R-06</td><td>WakeLock not supported on target device</td><td>Medium</td><td>Fallback: speak "Keep screen on manually" on start. Proceed without lock.</td></tr>
+      </tbody>
+      <tbody class="risk-low">
+        <tr><td>R-07</td><td>Vercel cold start adds latency on first API call</td><td>Low</td><td>Warm function with a no-op call on app load. Acceptable for demo.</td></tr>
+        <tr><td>R-08</td><td>Chrome Android camera permission requires HTTPS</td><td>Low</td><td>Vercel provides HTTPS by default. Non-issue.</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- S15: Open Questions -->
+  <section class="section" id="s15">
+    <div class="section-header">
+      <span class="section-number">15</span>
+      <h2 class="section-title">Open Questions</h2>
+    </div>
+
+    <table>
+      <thead><tr><th>ID</th><th>Question</th><th>Owner</th><th>Decision needed by</th></tr></thead>
+      <tbody>
+        <tr><td>OQ-03</td><td>Is there a specific device being used for the demo? Voice and camera behavior vary significantly across Android versions.</td><td>Team</td><td>Week 1</td></tr>
+      </tbody>
+    </table>
+
+    <div class="callout callout-success">
+      <strong>Document status:</strong> This PRD is the source of truth for the MVP build. All functional changes must be reflected here before implementation begins. Open questions must be resolved and noted in this document when answered.
+    </div>
+  </section>
+
+  <!-- S16: Deferred but Architected -->
+  <section class="section" id="s16">
+    <div class="section-header">
+      <span class="section-number">16</span>
+      <h2 class="section-title">Deferred but Architected</h2>
+    </div>
+
+    <p>These features are not built in the MVP but must be accounted for in code structure now. Adding them later must not require a rewrite.</p>
+
+    <h3>Scene Description Mode</h3>
+    <p>When active, Claude returns a <code>scene_description</code> field describing the general environment in one sentence. This is spoken in addition to (or instead of) the navigation direction, depending on mode.</p>
+
+    <div class="callout callout-info">
+      <strong>Architecture requirement:</strong> The system prompt must be assembled by a <code>buildSystemPrompt(mode)</code> function, not a hardcoded string. In MVP, <code>mode = 'navigation'</code> and <code>scene_description</code> is omitted from the JSON schema. When scene description is enabled, <code>mode = 'describe'</code> adds the field back. The prompt builder is the only code that changes.
+    </div>
+
+    <p>The JSON schema for scene description mode:</p>
+    <div class="code-block">{
+  <span class="key">"obstacles"</span>: [ ... ],
+  <span class="key">"scene_description"</span>: <span class="str">string</span>,  <span class="comment">// added when mode = 'describe'</span>
+  <span class="key">"navigation_direction"</span>: <span class="str">string</span>,
+  <span class="key">"goal_found"</span>: <span class="kw">boolean</span>,
+  <span class="key">"goal_confidence"</span>: <span class="num">number</span>
+}</div>
+
+    <p>The app state must include a <code>mode</code> field (<code>'navigation' | 'describe'</code>) initialized to <code>'navigation'</code>. A future UI toggle or voice command ("describe my surroundings") sets it to <code>'describe'</code> for one cycle, then returns to <code>'navigation'</code>.</p>
+
+    <h3>Configurable TTS Voice and Speed</h3>
+    <p>TTS parameters (voice, rate, pitch, volume) are not user-configurable in MVP. They are hardcoded as named constants at the top of <code>SpeechQueue</code>, not inline literals. This is the only architectural requirement.</p>
+
+    <div class="callout callout-info">
+      <strong>Architecture requirement:</strong> Define a <code>TTS_CONFIG</code> object at module level in <code>SpeechQueue</code>. All <code>SpeechSynthesisUtterance</code> instances read from it. When a settings UI is added, it writes to this object. No other code changes.
+    </div>
+
+    <div class="code-block"><span class="comment">// SpeechQueue.js — top of file</span>
+<span class="kw">const</span> TTS_CONFIG = {
+  <span class="key">rate</span>: <span class="num">1.05</span>,
+  <span class="key">pitch</span>: <span class="num">1.0</span>,
+  <span class="key">volume</span>: <span class="num">1.0</span>,
+  <span class="key">voiceLang</span>: <span class="str">'en-US'</span>,
+  <span class="key">preferLocalVoice</span>: <span class="kw">true</span>
+};
+
+<span class="comment">// All utterances use this config — never hardcode values elsewhere</span>
+<span class="kw">function</span> <span class="key">createUtterance</span>(text) {
+  <span class="kw">const</span> u = <span class="kw">new</span> SpeechSynthesisUtterance(text);
+  u.rate   = TTS_CONFIG.rate;
+  u.pitch  = TTS_CONFIG.pitch;
+  u.volume = TTS_CONFIG.volume;
+  u.voice  = selectVoice(TTS_CONFIG.voiceLang, TTS_CONFIG.preferLocalVoice);
+  <span class="kw">return</span> u;
+}</div>
+
+    <h3>Goal Detection Reliability</h3>
+    <p>Goal detection relies on Claude's self-reported <code>goal_confidence</code> value, which is unreliable for subtle visual cues — particularly small text on angled or poorly lit door signs (e.g. "room 204"). The 2-frame arrival confirmation partially mitigates this but does not solve it.</p>
+    <p><strong>Demo route constraint:</strong> Week 4 prompt tuning must select demo destinations that are high-contrast and visually distinct: elevator doors, illuminated exit signs, large room number plaques. Avoid destinations identifiable only by small text at an angle.</p>
+    <p><strong>Post-MVP:</strong> When <code>goal_confidence</code> is between 0.5 and 0.8, trigger a dedicated OCR pass on the frame rather than relying on the vision model's general confidence estimate.</p>
+
+    <h3>Real Building Prompt Tuning (OQ-01 resolved)</h3>
+    <p>Demo environment is confirmed as a real building. Prompt tuning in Week 4 must prioritize: corridor and doorway detection accuracy, sign reading in varying lighting, and distinguishing navigable space from furniture. Test scenarios to cover: hospital corridor, office hallway with multiple doors, lobby with mixed obstacles.</p>
+
+    <h3>API Budget (OQ-04 resolved)</h3>
+    <p>Budget is $5.00/day. At ~$0.003/call (claude-sonnet-4-6 with a 640×480 JPEG at 1 fps), $5 covers ~1,666 calls — approximately 27 minutes of continuous active navigation. Sufficient for demo day with headroom. Monitor via the Anthropic dashboard. No in-app enforcement needed for a single controlled device.</p>
+
+</main>
+</div>
+
+</body>
+</html>

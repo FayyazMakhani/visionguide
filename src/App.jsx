@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback, Component } from 'react';
 import { initCamera, stopCamera } from './modules/camera.js';
+import { DEMO_MODE } from './constants.js';
 import { startLoop, stopLoop } from './modules/loop.js';
 import { speak, cancel, resetSpeech } from './modules/speech.js';
 import GoalInput from './components/GoalInput.jsx';
@@ -49,6 +50,8 @@ export default function App() {
   const [showOnboarding, setShowOnboarding] = useState(
     !sessionStorage.getItem('vg_visited')
   );
+  // Demo-only: presenter toggles the live camera feed as a background. Off by default.
+  const [showCameraPreview, setShowCameraPreview] = useState(false);
 
   // --- Refs ---
   const videoRef = useRef(null);
@@ -155,10 +158,23 @@ export default function App() {
   return (
     <ErrorBoundary>
       {showOnboarding && <Onboarding onDismiss={handleOnboardingDismiss} />}
-      <div style={styles.container}>
-        <CameraPreview videoRef={videoRef} />
+      <div style={showCameraPreview ? { ...styles.container, background: 'transparent' } : styles.container}>
+        <CameraPreview videoRef={videoRef} visible={showCameraPreview} />
+        {showCameraPreview && <div style={styles.demoScrim} aria-hidden="true" />}
 
-        <div style={styles.content}>
+        {DEMO_MODE && (
+          <button
+            type="button"
+            onClick={() => setShowCameraPreview(v => !v)}
+            aria-label="Toggle camera preview background"
+            aria-pressed={showCameraPreview}
+            style={{ ...styles.demoToggle, color: showCameraPreview ? '#22c55e' : '#ef4444' }}
+          >
+            {showCameraPreview ? 'Hide camera' : 'Show camera'}
+          </button>
+        )}
+
+        <div style={showCameraPreview ? { ...styles.content, position: 'relative', zIndex: 1 } : styles.content}>
           <h1 style={styles.title}>VisionGuide</h1>
 
           <GoalInput
@@ -203,6 +219,30 @@ const styles = {
     display: 'flex',
     flexDirection: 'column',
     gap: '20px',
+  },
+  // Demo-only: darkens the live camera feed so the UI text stays legible over it.
+  demoScrim: {
+    position: 'fixed',
+    inset: 0,
+    background: 'rgba(15, 15, 15, 0.55)',
+    zIndex: 0,
+    pointerEvents: 'none',
+  },
+  // Demo-only: presenter control to show/hide the camera feed during a pitch.
+  demoToggle: {
+    position: 'fixed',
+    top: '16px',
+    right: '16px',
+    zIndex: 2,
+    width: '120px',          // fixed so the box doesn't resize between "Show"/"Hide"
+    textAlign: 'center',
+    padding: '8px 0',
+    fontSize: '14px',
+    fontWeight: 600,
+    background: 'rgba(40, 40, 40, 0.85)',
+    border: '2px solid',     // border color follows the text color (currentColor)
+    borderRadius: '8px',
+    cursor: 'pointer',
   },
   title: {
     color: '#ffffff',

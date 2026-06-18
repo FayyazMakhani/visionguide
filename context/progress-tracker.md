@@ -68,9 +68,18 @@ Update this file whenever the current phase, active feature, or implementation s
   - Resolves OQ-03 (demo device), OQ-04, OQ-05 (Week 2/3 on-device sign-off that Week 3/4 code was implemented ahead of) — see Open Questions.
   - Caveat not yet resolved: "Chrome on iOS" runs on Apple's WebKit engine (Apple requires all iOS browsers to use it), not Chrome's actual Blink engine — so this isn't independent confirmation of the PRD's Android-Chrome-specific APIs (`webkitSpeechRecognition`, `getUserMedia` constraints) working the same way the PRD assumes. The PRD (NFR-08, §7 Out of Scope) explicitly scopes iOS/Safari out for this reason. Flagged as a new open question rather than silently broadening NFR-08 — see OQ-08.
 
+- **`06-visionguide-demo-camera-preview-spec.md` implemented** (branch `feature/camera-preview-demo`), additive demo-only scope:
+  - `src/constants.js` — added `DEMO_MODE = false` flag (off by default), alongside `DEV_MODE`. `DEMO_MODE` only gates whether the toggle button is rendered; the camera background is driven by runtime state, not the flag.
+  - `src/components/CameraPreview.jsx` — takes a `visible` prop; the existing `<video>` becomes a full-screen background (`objectFit: cover`, `zIndex: 0`, `backgroundColor: #0f0f0f` so it matches the theme before the stream starts) when `visible`, else the hidden style. The hidden style is now clamped to a `1px` box to stop the intrinsic-resolution video overflowing the viewport horizontally (which mis-anchored the fixed toggle button); frame capture is unaffected (`getFrame` uses intrinsic size). `aria-hidden="true"` kept in both modes.
+  - `src/App.jsx` — runtime `showCameraPreview` state (default `false`). When `DEMO_MODE` is on, renders a fixed top-right toggle button (fixed 120px width so it doesn't resize between "Show camera"/"Hide camera"; color-coded — green text+border when shown, red when hidden; `aria-label` + `aria-pressed`). When `showCameraPreview` is true, container background goes transparent, a fixed dark scrim (`rgba(15,15,15,0.55)`) layers over the feed for legibility, and `content` is raised to `zIndex: 1`. Unchanged when off.
+  - `index.html` — added a minimal body reset (`margin: 0; background: #0f0f0f`) so the dark theme reaches the viewport edges. Fixes a pre-existing white border (default body margin + white page background) that the camera-on state happened to cover; matches the existing `theme-color: #0f0f0f`. Affects the shipped product too (strictly the intended edge-to-edge dark look).
+  - `camera.js` capture / loop logic untouched (out of scope).
+  - Verified `npm run build` and `npm run lint` pass clean (AT-DM-01, AT-DM-04). AT-DM-02 (visible feed with toggle on) verified locally on the laptop webcam; on-device rear-camera check still pending.
+  - **Scope note (Week 4 §1):** like landmark memory (OQ-06), this is a new feature added during the Week 4 "no new features" window. It is justified via the spec-driven path (spec 06 authored first, per the 05-scan-phase precedent) and is a demo-only presentation aid that is off by default, so the shipped product for end users is unchanged (aside from the intended white-border fix above). Flagged here for review consistency with OQ-06.
+
 ## In Progress
 
-- None — all Week 1–4 + scan-phase code changes are implemented and on-device acceptance testing is complete. Remaining work is the real-world Week 4 polish/demo-prep punch list below, not yet started.
+- `feature/camera-preview-demo` — spec 06 implemented and verified (build/lint, local webcam). Pending: on-device rear-camera check (AT-DM-02) and opening the PR.
 
 ## Next Up
 

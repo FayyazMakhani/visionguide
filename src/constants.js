@@ -10,6 +10,7 @@ export const SILENCE_HOLDOFF_MS = 10_000; // Max one "Still scanning" per 10s
 export const STALE_WARNING_STREAK    = 3;      // 3 consecutive stale drops before telling the user to slow down
 export const STALE_WARNING_HOLDOFF_MS = 15_000; // Max one "too fast" warning per 15s — rarer than "Still scanning"
 export const DEV_MODE = false; // Set to true locally for debugging
+export const DEMO_MODE = false; // Set to true in a demo build to expose the camera-preview toggle (presentation only)
 
 // --- Scan & explore phases (05-visionguide-scan-phase-spec.md) ---
 export const SCAN_INTERVAL_MS         = 500;    // 2fps during scan phase

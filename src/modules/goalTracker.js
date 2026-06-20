@@ -1,6 +1,6 @@
 // src/modules/goalTracker.js
 
-import { GOAL_CONFIDENCE_THRESHOLD, GOAL_CONFIRM_FRAMES, DEV_MODE } from '../constants.js';
+import { GOAL_CONFIDENCE_THRESHOLD, GOAL_CONFIRM_FRAMES, GOAL_FAST_CONFIRM_CONFIDENCE, DEV_MODE } from '../constants.js';
 
 let consecutiveFoundCount = 0;
 
@@ -17,6 +17,13 @@ let consecutiveFoundCount = 0;
  */
 export function trackGoal(goalFound, goalConfidence) {
   if (goalFound === true && goalConfidence >= GOAL_CONFIDENCE_THRESHOLD) {
+    // Very high confidence on the first qualifying frame skips the 2nd confirm
+    // frame entirely — each frame costs a full API round trip, so this halves
+    // worst-case arrival-announcement latency for the common, unambiguous case.
+    if (goalConfidence >= GOAL_FAST_CONFIRM_CONFIDENCE) {
+      consecutiveFoundCount = 0;
+      return true;
+    }
     consecutiveFoundCount++;
     if (DEV_MODE) console.debug(`Goal confidence: ${goalConfidence}, consecutive: ${consecutiveFoundCount}`);
     return consecutiveFoundCount >= GOAL_CONFIRM_FRAMES;

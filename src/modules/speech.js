@@ -1,7 +1,7 @@
 // TTS_CONFIG — all utterance parameters defined here.
 // To add configurable TTS, write to this object. No other code changes needed.
 export const TTS_CONFIG = {
-  rate: 1.05,
+  rate: 1.15,
   pitch: 1.0,
   volume: 1.0,
   voiceLang: 'en-US',
@@ -61,9 +61,11 @@ function processQueue() {
 /**
  * Speak text via TTS.
  * @param {string} text
- * @param {boolean} interrupt - If true, cancel current speech first
+ * @param {boolean} interrupt    - If true, cancel current speech first
+ * @param {function} [onStart]   - Called when this utterance actually starts playing
+ *                                 (not when it's enqueued) — use this to sync UI text to audio.
  */
-export function speak(text, interrupt = false) {
+export function speak(text, interrupt = false, onStart) {
   if (!text || !text.trim()) return;
 
   // Deduplication: don't repeat the same direction within 10 seconds
@@ -74,13 +76,29 @@ export function speak(text, interrupt = false) {
     now - lastSpokenAt < DEDUP_WINDOW_MS
   ) return;
 
-  if (interrupt) {
-    cancel();
-  }
-
   const utterance = createUtterance(text);
-  speechQueue.push(utterance);
-  processQueue();
+  if (onStart) utterance.onstart = onStart;
+
+  if (interrupt) {
+    // If something is actively playing, give it the same gap a natural queue
+    // transition would get instead of cutting straight into the next utterance —
+    // a zero-gap interrupt is what makes back-to-back alerts feel like they collide.
+    const wasSpeaking = window.speechSynthesis.speaking;
+    cancel();
+    speechQueue.push(utterance);
+    if (wasSpeaking) {
+      isProcessingQueue = true;
+      setTimeout(() => {
+        isProcessingQueue = false;
+        processQueue();
+      }, QUEUE_PAUSE_MS);
+    } else {
+      processQueue();
+    }
+  } else {
+    speechQueue.push(utterance);
+    processQueue();
+  }
 
   lastSpokenText = text;
   lastSpokenAt = now;

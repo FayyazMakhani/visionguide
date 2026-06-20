@@ -32,8 +32,8 @@ JSON structure:
 ${schema}
 
 Rules:
-- navigation_direction: max 15 words, action-oriented, references a specific visible landmark when one exists.
-  BAD: "Move forward." GOOD: "Move forward toward the elevator doors ahead."
+- navigation_direction: max 8-10 words, action-oriented, references a specific visible landmark when one exists.
+  BAD: "Move forward." GOOD: "Move forward toward the elevator doors."
   BAD: "Turn left." GOOD: "Turn left at the blue door."
 - Use spatial words only: left, right, ahead, behind. Never compass directions.
 - All directions are from the perspective of the person holding the camera.
@@ -54,6 +54,8 @@ Rules:
   goal_confidence; the same sign filling a large portion of the frame right ahead is
   goal_found=true with high goal_confidence.
 - If goal is not visible, or visible but still far away: goal_found=false, goal_confidence=0.
+- If a "Destination last seen" hint is provided and the goal is not visible in this frame,
+  route the user back toward that last-known direction rather than treating the goal as lost.
 - If nothing is blocking and the path is clear, say so: "Path is clear, continue ahead."
 - Do NOT include scene descriptions or commentary. Navigation output only.
 - Return valid JSON only. Nothing else.`;

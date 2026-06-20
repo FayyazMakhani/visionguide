@@ -7,6 +7,7 @@ import { speak } from './speech.js';
 import { routeObstacles, resetObstacles } from './obstacles.js';
 import { trackGoal, resetGoalTracker } from './goalTracker.js';
 import { extractLandmarks, resetLandmarks } from './landmarks.js';
+import { recordGoalSighting, resetGoalMemory } from './goalMemory.js';
 import { initGyroscope, isRotatingTooFast, shouldWarnRotationSpeed } from './gyroscope.js';
 import {
   LOOP_INTERVAL_MS,
@@ -21,6 +22,8 @@ import {
   SCAN_MIN_CONFIDENCE,
   EXPLORE_INTERVAL_MS,
   EXPLORE_TIMEOUT_MS,
+  SCAN_MODEL,
+  NAVIGATE_MODEL,
 } from '../constants.js';
 
 let intervalId = null;
@@ -58,6 +61,7 @@ export function startLoop(videoEl, streamRef, stateRef, callbacks) {
   resetObstacles();
   resetGoalTracker();
   resetLandmarks();
+  resetGoalMemory();
 
   initGyroscope();
   phase = 'scan';
@@ -68,8 +72,7 @@ export function startLoop(videoEl, streamRef, stateRef, callbacks) {
 
     if (phase === 'scan' && isRotatingTooFast()) {
       if (shouldWarnRotationSpeed()) {
-        speak('A little slower.');
-        callbacks.onSpeak('A little slower.');
+        speak('A little slower.', false, () => callbacks.onSpeak('A little slower.'));
       }
       return;
     }
@@ -101,8 +104,7 @@ export function startLoop(videoEl, streamRef, stateRef, callbacks) {
     const silenceTimer = setTimeout(() => {
       const now = Date.now();
       if (now - lastSilenceFiredAt >= SILENCE_HOLDOFF_MS) {
-        speak('Still scanning');
-        callbacks.onSpeak('Still scanning');
+        speak('Still scanning', false, () => callbacks.onSpeak('Still scanning'));
         lastSilenceFiredAt = now;
         silenceFired = true;
       }
@@ -116,12 +118,16 @@ export function startLoop(videoEl, streamRef, stateRef, callbacks) {
         phase === 'explore' ? buildExplorePrompt(goal) :
         buildSystemPrompt('navigation');
 
-      const result = await callClaude(systemPrompt, [buildUserMessage(goal, context, frame)], abortController.signal);
+      const model = phase === 'navigate' ? NAVIGATE_MODEL : SCAN_MODEL;
+      const result = await callClaude(systemPrompt, [buildUserMessage(goal, context, frame)], abortController.signal, model);
 
       clearTimeout(silenceTimer);
 
       if (phase === 'scan' || phase === 'explore') {
-        const foundGoal = result.navigation_direction && result.goal_confidence >= SCAN_MIN_CONFIDENCE;
+        // Drop navigation/goal data from a stale frame — the frame is old enough
+        // that a direction referencing what was visible in it may no longer apply.
+        const isStale = Date.now() - capturedAt > STALE_FRAME_MS;
+        const foundGoal = !isStale && result.navigation_direction && result.goal_confidence >= SCAN_MIN_CONFIDENCE;
 
         if (foundGoal) {
           if (phase === 'scan' && scanTimerId !== null) {
@@ -136,8 +142,7 @@ export function startLoop(videoEl, streamRef, stateRef, callbacks) {
           clearInterval(intervalId);
           intervalId = setInterval(tick, LOOP_INTERVAL_MS);
 
-          speak(result.navigation_direction);
-          callbacks.onSpeak(result.navigation_direction);
+          speak(result.navigation_direction, false, () => callbacks.onSpeak(result.navigation_direction));
           callbacks.onContextUpdate(result.navigation_direction);
           return;
         }
@@ -148,9 +153,8 @@ export function startLoop(videoEl, streamRef, stateRef, callbacks) {
 
         // Explore phase only: guide toward navigable space even though the
         // goal itself hasn't been confirmed (goal_confidence below threshold).
-        if (phase === 'explore' && result.navigation_direction) {
-          speak(result.navigation_direction);
-          callbacks.onSpeak(result.navigation_direction);
+        if (phase === 'explore' && result.navigation_direction && !isStale) {
+          speak(result.navigation_direction, false, () => callbacks.onSpeak(result.navigation_direction));
           callbacks.onContextUpdate(result.navigation_direction);
         }
         return;
@@ -177,8 +181,7 @@ export function startLoop(videoEl, streamRef, stateRef, callbacks) {
           const now = Date.now();
           if (now - lastStaleWarningAt >= STALE_WARNING_HOLDOFF_MS) {
             const warning = 'Moving too fast for me to keep up. Please slow down.';
-            speak(warning);
-            callbacks.onSpeak(warning);
+            speak(warning, false, () => callbacks.onSpeak(warning));
             lastStaleWarningAt = now;
           }
         }
@@ -188,17 +191,21 @@ export function startLoop(videoEl, streamRef, stateRef, callbacks) {
 
       // Speak navigation direction
       if (result.navigation_direction) {
-        speak(result.navigation_direction);
-        callbacks.onSpeak(result.navigation_direction);
+        speak(result.navigation_direction, false, () => callbacks.onSpeak(result.navigation_direction));
         callbacks.onContextUpdate(result.navigation_direction);
         extractLandmarks(result.navigation_direction);
+      }
+
+      // Remember where the goal was last seen so guidance can point back
+      // toward it if it leaves frame before arrival is confirmed.
+      if (result.goal_found && result.goal_confidence >= SCAN_MIN_CONFIDENCE) {
+        recordGoalSighting(result.navigation_direction);
       }
 
       // Check goal arrival
       const arrived = trackGoal(result.goal_found, result.goal_confidence);
       if (arrived) {
-        speak(`You have arrived at ${goal}`, true);
-        callbacks.onSpeak(`Arrived at ${goal}`);
+        speak(`You have arrived at ${goal}`, true, () => callbacks.onSpeak(`Arrived at ${goal}`));
         callbacks.onArrival();
         stopLoop();
       }
@@ -210,15 +217,13 @@ export function startLoop(videoEl, streamRef, stateRef, callbacks) {
       if (err.name === 'AbortError') return;
 
       if (err.message === 'rate_limited') {
-        speak('Connection slow. Pausing briefly.');
-        callbacks.onSpeak('Connection slow. Pausing briefly.');
+        speak('Connection slow. Pausing briefly.', false, () => callbacks.onSpeak('Connection slow. Pausing briefly.'));
         // Back off: pause the loop for 5 seconds
         await new Promise(resolve => setTimeout(resolve, 5000));
       } else if (!silenceFired) {
         const now = Date.now();
         if (now - lastSilenceFiredAt >= SILENCE_HOLDOFF_MS) {
-          speak('Still scanning');
-          callbacks.onSpeak('Still scanning');
+          speak('Still scanning', false, () => callbacks.onSpeak('Still scanning'));
           lastSilenceFiredAt = now;
         }
       }
@@ -240,16 +245,14 @@ export function startLoop(videoEl, streamRef, stateRef, callbacks) {
 
     const goal = stateRef.current.goal;
     const msg = `I'll guide you through the building to find ${goal}. Follow my directions.`;
-    speak(msg);
-    callbacks.onSpeak(msg);
+    speak(msg, false, () => callbacks.onSpeak(msg));
   }
 
   function onExploreTimeout() {
     exploreTimerId = null;
     const goal = stateRef.current.goal;
     const msg = `I wasn't able to find ${goal}. Please ask someone nearby for help.`;
-    speak(msg);
-    callbacks.onSpeak(msg);
+    speak(msg, false, () => callbacks.onSpeak(msg));
     stopLoop();
   }
 
@@ -259,8 +262,7 @@ export function startLoop(videoEl, streamRef, stateRef, callbacks) {
   // rather than speaking immediately, so it naturally plays after whatever
   // App.jsx already queued before calling startLoop.
   const scanInstruction = "Hold your phone up and slowly scan the area. I'll guide you when I see something.";
-  speak(scanInstruction);
-  callbacks.onSpeak(scanInstruction);
+  speak(scanInstruction, false, () => callbacks.onSpeak(scanInstruction));
 
   intervalId = setInterval(tick, SCAN_INTERVAL_MS);
 }

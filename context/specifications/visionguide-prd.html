@@ -815,7 +815,7 @@
         <span class="badge badge-mvp">MVP</span>
       </div>
       <div class="req-body">
-        Each API response includes a <code>navigation_direction</code> string of maximum 15 words. This is spoken via TTS after any queued speech completes, unless an obstacle interrupt is pending.
+        Each API response includes a <code>navigation_direction</code> string of maximum 8-10 words (tightened from 15 — shorter utterances reduce speech-queue backlog and the window during which displayed text can drift ahead of audio). This is spoken via TTS after any queued speech completes, unless an obstacle interrupt is pending.
         <ul>
           <li>Directions must use compass-free language: "turn left", "straight ahead", "move right"</li>
           <li>Same direction must not be spoken twice consecutively unless &gt;10 seconds have elapsed</li>
@@ -834,6 +834,23 @@
         <ul>
           <li>Two-frame confirmation required to prevent false positives</li>
           <li>Loop must fully stop — no further API calls after arrival</li>
+          <li>Fast-path exception: if <code>goal_confidence &ge; 0.95</code> on the first qualifying frame, arrival is confirmed immediately without waiting for a second frame — each frame costs a full API round trip, so this halves worst-case arrival-announcement latency for the common, unambiguous case while leaving the two-frame guard in place for lower-confidence reads</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="req">
+      <div class="req-header">
+        <span class="req-id">FR-NAV-05</span>
+        <span class="req-title">Destination memory when out of view</span>
+        <span class="badge badge-mvp">MVP</span>
+      </div>
+      <div class="req-body">
+        Once the destination has been seen with <code>goal_confidence</code> at or above the scan/explore threshold (0.5), the app remembers the direction it was last seen in. If a later frame doesn't find the destination, that last-known direction is included as a hint in the next API call so guidance can route the user back toward it instead of treating the destination as lost.
+        <ul>
+          <li>A sighting expires after 30 seconds — old enough to survive a brief look-away, not so old it guides the user toward a now-irrelevant direction if they've moved on</li>
+          <li>Memory is cleared at the start of every new navigation session</li>
+          <li>This does not change arrival confirmation (FR-NAV-03) — the hint only affects guidance while the destination is out of frame, not whether arrival is confirmed</li>
         </ul>
       </div>
     </div>
@@ -853,6 +870,7 @@
           <li>Uses a dedicated scan prompt distinct from the navigation prompt</li>
           <li>Exits to navigation phase once Claude returns a non-null <code>navigation_direction</code> with <code>goal_confidence</code> at or above 0.5 — a lower bar than the 0.8 arrival threshold in FR-NAV-03, sufficient only to start guiding the user toward what was seen</li>
           <li>The scan instruction must enqueue in SpeechQueue after the mandatory safety prompt (FR-UI-03), never interrupting it</li>
+          <li>Same stale-frame guard as navigate phase (R-01): a response is dropped (no phase transition, no spoken direction) if its frame is older than 4500ms when the response arrives — obstacles in that frame are still routed</li>
         </ul>
       </div>
     </div>
@@ -950,7 +968,7 @@
       <div class="req-body">
         All spoken output uses <code>window.speechSynthesis</code>. Voice selection: prefer the first available <code>en-US</code> voice with <code>localService: true</code>. Fall back to default if unavailable.
         <ul>
-          <li>Speech rate: 1.05 (slightly faster than default for navigation use)</li>
+          <li>Speech rate: 1.15 (slightly faster than default for navigation use; raised from the original 1.05 to shorten how long each utterance occupies the speech queue)</li>
           <li>Pitch: 1.0 (no modification)</li>
           <li>Volume: 1.0</li>
         </ul>
@@ -965,6 +983,21 @@
       </div>
       <div class="req-body">
         If no API response is received within 3 seconds of a frame being sent, the app speaks "Still scanning" and continues the loop. This prevents unexplained silence. Maximum one "Still scanning" per 10 seconds.
+      </div>
+    </div>
+
+    <div class="req">
+      <div class="req-header">
+        <span class="req-id">FR-AUD-03</span>
+        <span class="req-title">Alert spacing and text/speech sync</span>
+        <span class="badge badge-mvp">MVP</span>
+      </div>
+      <div class="req-body">
+        Two SpeechQueue behaviors are required to keep spoken output from feeling rushed or desynchronized from the on-screen text:
+        <ul>
+          <li>When an obstacle interrupt (FR-OBS-01 high urgency) or the arrival announcement (FR-NAV-03) cuts off speech that is actively playing, the new utterance starts after the same brief pause a natural queue transition would get, not instantly — an instant cut-in is what makes back-to-back alerts feel like they collide. If nothing is currently playing, the new utterance still starts immediately.</li>
+          <li>The on-screen status text must update at the moment its matching utterance actually starts playing, not at the moment it's enqueued — queued/delayed speech otherwise lets the displayed text race ahead of the audio.</li>
+        </ul>
       </div>
     </div>
 
@@ -1038,6 +1071,7 @@
         <tr><td>NFR-08</td><td>Compatibility</td><td>Target browser</td><td>Chrome 120+ on Android 10+</td></tr>
       </tbody>
     </table>
+    <p>NFR-01/NFR-02 mitigation: the <code>navigate</code> phase (the highest-frequency tick, and the phase users spend the most time in) now calls a faster model (<code>claude-haiku-4-5-20251001</code>) instead of Sonnet, and the arrival fast-path (FR-NAV-03) can confirm goal arrival in one round trip instead of two when confidence is unambiguous. <code>scan</code>/<code>explore</code> keep Sonnet, since signage-reading accuracy to first locate the destination matters more there than shaving latency. Thresholds themselves are unchanged — this targets them, it doesn't redefine them.</p>
   </section>
 
   <!-- S7: Out of scope -->
@@ -1579,7 +1613,7 @@ Rules:
 
     <div class="code-block"><span class="comment">// SpeechQueue.js — top of file</span>
 <span class="kw">const</span> TTS_CONFIG = {
-  <span class="key">rate</span>: <span class="num">1.05</span>,
+  <span class="key">rate</span>: <span class="num">1.15</span>,
   <span class="key">pitch</span>: <span class="num">1.0</span>,
   <span class="key">volume</span>: <span class="num">1.0</span>,
   <span class="key">voiceLang</span>: <span class="str">'en-US'</span>,

@@ -1,4 +1,5 @@
 import { getLandmarkContext } from '../modules/landmarks.js';
+import { getGoalMemoryHint } from '../modules/goalMemory.js';
 
 const API_KEY = import.meta.env.VITE_ANTHROPIC_API_KEY;
 const ENDPOINT = 'https://api.anthropic.com/v1/messages';
@@ -11,10 +12,11 @@ if (!API_KEY) {
  * @param {string} systemPrompt
  * @param {Array} messages       - Anthropic messages array
  * @param {AbortSignal} [signal] - Aborts the in-flight request (e.g. on Stop)
+ * @param {string} [model]       - Anthropic model id; defaults to Sonnet
  * @returns {Promise<object>}    - Parsed JSON from Claude
  * @throws {Error}               - 'network_failure' | 'rate_limited' | 'api_error_<status>' | DOMException 'AbortError'
  */
-export async function callClaude(systemPrompt, messages, signal) {
+export async function callClaude(systemPrompt, messages, signal, model = 'claude-sonnet-4-6') {
   let response;
 
   try {
@@ -27,7 +29,7 @@ export async function callClaude(systemPrompt, messages, signal) {
         'content-type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-6',
+        model,
         max_tokens: 500,  // 300 risks truncating multi-obstacle JSON mid-stream; 500 provides headroom
         system: [
           { type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral' } },
@@ -85,11 +87,13 @@ export function buildUserMessage(goal, context, base64Frame) {
     : 'No prior context.';
 
   const landmarkText = getLandmarkContext();
+  const goalMemoryHint = getGoalMemoryHint();
 
   const textParts = [
     `Goal: ${goal}`,
     contextText,
     landmarkText,
+    goalMemoryHint,
     'Analyze this frame.',
   ].filter(Boolean).join('\n');
 

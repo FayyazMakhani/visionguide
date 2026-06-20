@@ -3,6 +3,9 @@ export const API_TIMEOUT_MS    = 3000;   // Speak "Still scanning" after 3s of n
 export const STALE_FRAME_MS    = 4500;   // Drop API response if frame is older than 4.5s (p95 latency + 500ms buffer)
 export const GOAL_CONFIDENCE_THRESHOLD = 0.8; // Lower to 0.7 if demo destination is missed
 export const GOAL_CONFIRM_FRAMES = 2;    // Consecutive frames required to confirm arrival
+export const GOAL_FAST_CONFIRM_CONFIDENCE = 0.95; // Skip the 2nd confirm frame if the 1st is this confident
+export const SCAN_MODEL     = 'claude-sonnet-4-6';        // scan/explore: signage-reading accuracy matters most
+export const NAVIGATE_MODEL = 'claude-haiku-4-5-20251001'; // navigate: high-frequency, lower-stakes polling
 // OBSTACLE_CONFIRM_FRAMES intentionally removed — high urgency fires on first frame.
 // At 1fps + 3s latency, a 2-frame confirmation window consumes the entire available safety margin.
 export const DEDUP_WINDOW_MS   = 10_000; // Don't repeat same direction within 10s

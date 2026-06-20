@@ -26,12 +26,18 @@ function selectVoice() {
 // Voices load async on some browsers — re-select on voiceschanged
 window.speechSynthesis.onvoiceschanged = () => { selectedVoice = null; };
 
+// Chrome silently drops the first speak() call after a fresh page load while
+// the synthesis engine is still initializing. Warm it up with a throwaway
+// empty utterance so the real first utterance (the auto-listen prompt) isn't it.
+window.speechSynthesis.speak(new SpeechSynthesisUtterance(''));
+
 function createUtterance(text) {
   const u = new SpeechSynthesisUtterance(text);
   u.rate   = TTS_CONFIG.rate;
   u.pitch  = TTS_CONFIG.pitch;
   u.volume = TTS_CONFIG.volume;
-  u.voice  = selectVoice();
+  const voice = selectVoice();
+  if (voice) u.voice = voice;
   return u;
 }
 

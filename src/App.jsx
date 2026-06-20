@@ -149,8 +149,20 @@ export default function App() {
   const listenForDestination = useCallback(() => {
     setStatus('listening');
     speak('Listening for your destination.');
+
+    let autoListenSettled = false;
+    const watchdog = setTimeout(() => {
+      if (autoListenSettled) return;
+      autoListenSettled = true;
+      recognitionStopRef.current?.();
+      setStatus('idle');
+      speak("I didn't hear a response. Please tap the microphone button to try again.");
+    }, 4000);
+
     recognitionStopRef.current = startRecognition(
       async (transcript) => {
+        autoListenSettled = true;
+        clearTimeout(watchdog);
         setGoal(transcript);
         const { destination: cleanedGoal, ambiguous } = await extractDestination(transcript);
         setGoal(cleanedGoal);
@@ -183,6 +195,8 @@ export default function App() {
         );
       },
       () => {
+        autoListenSettled = true;
+        clearTimeout(watchdog);
         setStatus('idle');
         speak("Didn't catch that. Please type your destination or tap the mic to try again.");
       }

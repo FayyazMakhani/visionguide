@@ -4,11 +4,14 @@ const SpeechRecognition =
 export const isRecognitionAvailable = () => SpeechRecognition !== null;
 
 /**
- * @param {function} onResult  - Called with recognized string
- * @param {function} onError   - Called with error message string
+ * @param {function} onResult       - Called with recognized string
+ * @param {function} onError        - Called with error message string
+ * @param {function} [onSpeechStart] - Called as soon as speech is detected (before
+ *                                     a result is available) — use this for barge-in,
+ *                                     e.g. cutting off a TTS prompt the user is talking over.
  * @returns {function} stop() function
  */
-export function startRecognition(onResult, onError) {
+export function startRecognition(onResult, onError, onSpeechStart) {
   if (!SpeechRecognition) {
     onError('Speech recognition not available');
     return () => {};
@@ -21,6 +24,8 @@ export function startRecognition(onResult, onError) {
   recognition.continuous = false;
 
   let settled = false;
+
+  if (onSpeechStart) recognition.onspeechstart = onSpeechStart;
 
   recognition.onresult = (event) => {
     settled = true;

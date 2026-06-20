@@ -48,7 +48,9 @@ export default function App() {
   // 'idle' | 'listening' | 'navigating' | 'arrived'
   const [lastSpoken, setLastSpoken] = useState('');
   const [context, setContext] = useState([]);
-  const [showOnboarding, setShowOnboarding] = useState(false);
+  // Shown on every mount — the dismiss tap is the user gesture mobile
+  // browsers require before they'll allow speechSynthesis/recognition to run.
+  const [showOnboarding, setShowOnboarding] = useState(true);
 
   // --- Refs ---
   const videoRef = useRef(null);
@@ -78,13 +80,6 @@ export default function App() {
   const handleError = useCallback((errorMsg) => {
     console.error('Navigation error:', errorMsg);
     // Loop continues — errors are handled inside loop.js with "Still scanning"
-  }, []);
-
-  const handleOnboardingDismiss = useCallback(() => {
-    sessionStorage.setItem('vg_visited', '1');
-    setShowOnboarding(false);
-    // Speak the onboarding summary for screen reader users
-    speak('Welcome to VisionGuide. Type or speak your destination, then tap Start Navigation.');
   }, []);
 
   // --- Begin camera + navigation loop for a resolved destination ---
@@ -145,19 +140,30 @@ export default function App() {
   }, [goal, status, beginNavigation]);
 
   // --- Auto-listen for a destination on launch ---
+  const MAX_AUTO_RETRIES = 2;
   const listenForDestinationRef = useRef(null);
-  const listenForDestination = useCallback(() => {
+  const listenForDestination = useCallback((retryCount = 0) => {
     setStatus('listening');
-    speak('Listening for your destination.');
+    speak(retryCount === 0
+      ? 'Listening for your destination.'
+      : "I didn't hear you. Listening again.");
+
+    const retryOrGiveUp = () => {
+      setStatus('idle');
+      if (retryCount < MAX_AUTO_RETRIES) {
+        listenForDestinationRef.current(retryCount + 1);
+      } else {
+        speak('Please type your destination or tap the mic to try again.');
+      }
+    };
 
     let autoListenSettled = false;
     const watchdog = setTimeout(() => {
       if (autoListenSettled) return;
       autoListenSettled = true;
       recognitionStopRef.current?.();
-      setStatus('idle');
-      speak("I didn't hear a response. Please tap the microphone button to try again.");
-    }, 4000);
+      retryOrGiveUp();
+    }, 10000);
 
     recognitionStopRef.current = startRecognition(
       async (transcript) => {
@@ -191,15 +197,19 @@ export default function App() {
           () => {
             setStatus('idle');
             speak('Please type your destination or tap the mic to try again.');
-          }
+          },
+          cancel // barge-in: stop the "Did you say X?" prompt as soon as the user answers
         );
       },
       () => {
+        // Watchdog may have already handled this (it aborts recognition,
+        // which itself triggers this same onError) — don't double-speak.
+        if (autoListenSettled) return;
         autoListenSettled = true;
         clearTimeout(watchdog);
-        setStatus('idle');
-        speak("Didn't catch that. Please type your destination or tap the mic to try again.");
-      }
+        retryOrGiveUp();
+      },
+      cancel // barge-in: stop the "Listening for your destination" prompt as soon as the user speaks
     );
   }, [beginNavigation]);
 
@@ -208,13 +218,20 @@ export default function App() {
   }, [listenForDestination]);
 
   useEffect(() => {
+    return () => recognitionStopRef.current?.();
+  }, []); // mount only
+
+  const handleOnboardingDismiss = useCallback(() => {
+    sessionStorage.setItem('vg_visited', '1');
+    setShowOnboarding(false);
+    // This tap is the user gesture that unlocks speechSynthesis/recognition on
+    // mobile Chrome — auto-listen must start from here, not from mount.
     if (!isRecognitionAvailable()) {
       speak('Voice recognition is not available. Please type your destination.');
       return;
     }
-    listenForDestinationRef.current();
-    return () => recognitionStopRef.current?.();
-  }, []); // mount only
+    listenForDestination();
+  }, [listenForDestination]);
 
   // --- Stop navigation ---
   const handleStop = useCallback(async () => {

@@ -101,7 +101,8 @@ a meeting in room 204, get me there").
 
 Return ONLY valid JSON, no preamble, no markdown:
 {
-  "destination": string
+  "destination": string,
+  "ambiguous": boolean
 }
 
 Rules:
@@ -109,7 +110,10 @@ Rules:
 - Infer the implied place for indirect descriptions (e.g. "wash my hands" -> "the bathroom" or "a sink").
 - If the input is already just a destination with no extra phrasing, return it unchanged.
 - If no destination can be identified at all, return the original input unchanged in destination.
-- Never return an empty string.`;
+- Never return an empty string.
+- ambiguous: true if the transcript sounds like noise, a stray fragment, or is otherwise too
+  unclear to confidently resolve to a specific place without heavy guessing. false if the
+  destination is stated directly or can be confidently inferred.`;
 }
 
 /**

@@ -781,10 +781,10 @@
         <span class="badge badge-mvp">MVP</span>
       </div>
       <div class="req-body">
-        Before navigation starts, the user speaks or types a plain-language destination (e.g. "the elevator", "room 204", "the exit"). Voice input via Web Speech Recognition API is the primary input method. Text field is the fallback. The goal string is stored in app state and included in every API call for the session duration.
+        On page load, the app automatically starts listening for a plain-language destination (e.g. "the elevator", "room 204", "the exit") — see FR-NAV-06. The microphone button remains available afterward to retry or change the destination by voice; the text field remains the fallback/manual path at all times. The goal string is stored in app state and included in every API call for the session duration.
         <ul>
           <li>Goal is immutable per session. To change destination, user restarts.</li>
-          <li>Voice input: tap microphone button, speak goal, recognition result populates the text field for confirmation before starting navigation</li>
+          <li>Manual voice input (mic button): tap microphone button, speak goal, recognition result populates the text field for confirmation before starting navigation</li>
           <li>Text field must have <code>aria-label="Navigation destination"</code></li>
           <li>Field must be focused on page load for screen reader compatibility</li>
           <li>If Speech Recognition is unavailable, fall back silently to text-only input</li>
@@ -799,11 +799,12 @@
         <span class="badge badge-mvp">MVP</span>
       </div>
       <div class="req-body">
-        The raw goal string from FR-NAV-01 is not limited to a fixed command template ("take me to X", "go to X") — it may be a direct command, a question, or an indirect description of a need (e.g. "I need to wash my hands", "there's a meeting in room 204, get me there"). Before navigation starts, the app resolves this raw input to a clean destination noun phrase via a single Claude text-only call.
+        The raw goal string from FR-NAV-01 is not limited to a fixed command template ("take me to X", "go to X") — it may be a direct command, a question, or an indirect description of a need (e.g. "I need to wash my hands", "there's a meeting in room 204, get me there"). Before navigation starts, the app resolves this raw input to a clean destination noun phrase via a single Claude text-only call, which also returns whether the input was ambiguous (see FR-NAV-06).
         <ul>
-          <li>Runs once, when Start is tapped — not on every keystroke or voice result. The text field continues to display the user's raw input until then.</li>
-          <li>If the extraction call fails (network/API error) or returns nothing usable, the app falls back to the raw input string and navigation still proceeds.</li>
+          <li>Runs once, when Start is tapped (manual path) or once a voice transcript is captured (auto-listen path, FR-NAV-06) — not on every keystroke or voice result. The text field continues to display the user's raw input until then.</li>
+          <li>If the extraction call fails (network/API error) or returns nothing usable, the app falls back to the raw input string, treats it as unambiguous, and navigation still proceeds.</li>
           <li>The resolved destination replaces the goal string used in all subsequent navigation speech and API calls (FR-NAV-02, FR-NAV-03, FR-SCAN-01–05) for the rest of the session.</li>
+          <li>The manual Start-button path ignores the ambiguity flag entirely — no spoken confirmation is added there. Only the auto-listen path (FR-NAV-06) acts on it.</li>
         </ul>
       </div>
     </div>
@@ -851,6 +852,24 @@
           <li>A sighting expires after 30 seconds — old enough to survive a brief look-away, not so old it guides the user toward a now-irrelevant direction if they've moved on</li>
           <li>Memory is cleared at the start of every new navigation session</li>
           <li>This does not change arrival confirmation (FR-NAV-03) — the hint only affects guidance while the destination is out of frame, not whether arrival is confirmed</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="req">
+      <div class="req-header">
+        <span class="req-id">FR-NAV-06</span>
+        <span class="req-title">Auto-listen for destination on launch</span>
+        <span class="badge badge-mvp">MVP</span>
+      </div>
+      <div class="req-body">
+        Rather than requiring a mic tap or a dismissed onboarding modal first, the app starts listening for a destination automatically on page load, speaking "Listening for your destination." No onboarding modal is shown.
+        <ul>
+          <li>If <code>SpeechRecognition</code> is unavailable in this browser, no auto-listen attempt is made; the app speaks "Voice recognition is not available. Please type your destination." and the user proceeds via the manual text field + Start button (FR-NAV-01).</li>
+          <li>On a captured transcript, the app runs destination extraction (FR-NAV-04). If the result is not flagged <code>ambiguous</code>, the app speaks "Heading to [destination]." and immediately begins navigation (camera init, safety disclaimer per FR-UI-03 if due, then FR-SCAN-01) — no manual Start tap required.</li>
+          <li>If the result is flagged <code>ambiguous</code> (transcript was noisy, fragmentary, or otherwise required heavy guessing to resolve), the app instead asks "Did you say [destination]? Say yes or no." and listens for a yes/no answer before proceeding. A "yes" (or any answer not containing "yes") branches to the same "Heading to..." + auto-start, or to "Okay, let's try again." followed by re-entering auto-listen, respectively.</li>
+          <li>On no speech / recognition error during either the initial listen or the yes/no confirmation listen, the app speaks a fallback ("Didn't catch that..." or "Please type your destination or tap the mic to try again.") and returns to an idle state where the manual mic button and text field remain available.</li>
+          <li>This is a one-time automatic attempt on mount. After it resolves (successfully or not), all further voice input goes through the existing manual mic button (FR-UI-03), unchanged.</li>
         </ul>
       </div>
     </div>
@@ -1038,14 +1057,14 @@
         <span class="badge badge-mvp">MVP</span>
       </div>
       <div class="req-body">
-        A microphone button on the pre-navigation screen activates <code>SpeechRecognition</code> (Chrome Web Speech API). The recognized text populates the goal field. The user confirms by tapping Start.
+        A microphone button on the pre-navigation screen activates <code>SpeechRecognition</code> (Chrome Web Speech API) for manual voice goal entry/retry. The recognized text populates the goal field. The user confirms by tapping Start. (The automatic listen-on-launch attempt, FR-NAV-06, uses the same underlying recognition module but has its own confirmation/auto-start behavior, distinct from this manual mic-button flow.)
         <ul>
           <li>Use <code>webkitSpeechRecognition</code> with <code>lang: 'en-US'</code>, <code>interimResults: false</code>, <code>maxAlternatives: 1</code></li>
           <li>While listening, speak "Listening..." and show visual indicator</li>
           <li>On recognition result, populate text field and speak back the recognized text: "I heard: [goal]. Tap Start to begin."</li>
           <li>On recognition error or no-result, speak "Didn't catch that. Please try again or type your destination."</li>
           <li>If <code>SpeechRecognition</code> is unavailable (non-Chrome browser), hide mic button and use text-only input silently</li>
-          <li><strong>Safety prompt (mandatory):</strong> When Start is tapped, before the navigation loop begins, speak: "VisionGuide is a navigation aid only. Keep using your cane or other mobility aid." Plays once per calendar day, on the first Start of that day; cannot be skipped on that first play. Subsequent Starts the same day proceed directly to the scan instruction (see FR-SCAN-01) without replaying it.</li>
+          <li><strong>Safety prompt (mandatory):</strong> When navigation begins (via Start tap, or via the auto-listen flow's FR-NAV-06 auto-start), before the navigation loop begins, speak: "VisionGuide is a navigation aid only. Keep using your cane or other mobility aid." Plays once per calendar day, on the first navigation start of that day; cannot be skipped on that first play. Subsequent starts the same day proceed directly to the scan instruction (see FR-SCAN-01) without replaying it.</li>
         </ul>
       </div>
     </div>

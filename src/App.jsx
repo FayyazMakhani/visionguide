@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useCallback, Component } from 'react';
 import { initCamera, stopCamera } from './modules/camera.js';
 import { startLoop, stopLoop } from './modules/loop.js';
 import { extractDestination } from './modules/destination.js';
+import { isRecognitionAvailable, startRecognition } from './modules/recognition.js';
 import { speak, cancel, resetSpeech } from './modules/speech.js';
 import GoalInput from './components/GoalInput.jsx';
 import StartStopButton from './components/StartStopButton.jsx';
@@ -47,14 +48,13 @@ export default function App() {
   // 'idle' | 'listening' | 'navigating' | 'arrived'
   const [lastSpoken, setLastSpoken] = useState('');
   const [context, setContext] = useState([]);
-  const [showOnboarding, setShowOnboarding] = useState(
-    !sessionStorage.getItem('vg_visited')
-  );
+  const [showOnboarding, setShowOnboarding] = useState(false);
 
   // --- Refs ---
   const videoRef = useRef(null);
   const streamRef = useRef(null);
   const startTimeoutRef = useRef(null);
+  const recognitionStopRef = useRef(null);
 
   // Keep loopStateRef in sync with state so the interval reads fresh values
   const loopStateRef = useRef({ goal, context });
@@ -87,16 +87,10 @@ export default function App() {
     speak('Welcome to VisionGuide. Type or speak your destination, then tap Start Navigation.');
   }, []);
 
-  // --- Start navigation ---
-  const handleStart = useCallback(async () => {
-    if (!goal.trim()) return;
-    if (status === 'navigating') return;
-
-    const cleanedGoal = await extractDestination(goal);
-    if (cleanedGoal !== goal) {
-      setGoal(cleanedGoal);
-      loopStateRef.current = { ...loopStateRef.current, goal: cleanedGoal };
-    }
+  // --- Begin camera + navigation loop for a resolved destination ---
+  const beginNavigation = useCallback(async (cleanedGoal) => {
+    setGoal(cleanedGoal);
+    loopStateRef.current = { ...loopStateRef.current, goal: cleanedGoal };
 
     // Initialize camera if not already running
     if (!streamRef.current) {
@@ -139,7 +133,74 @@ export default function App() {
       window.speechSynthesis.speak(safetyUtterance);
     }
 
-  }, [goal, status, handleSpeak, handleContextUpdate, handleArrival, handleError]);
+  }, [handleSpeak, handleContextUpdate, handleArrival, handleError]);
+
+  // --- Start navigation (manual Start button) ---
+  const handleStart = useCallback(async () => {
+    if (!goal.trim()) return;
+    if (status === 'navigating') return;
+
+    const { destination: cleanedGoal } = await extractDestination(goal);
+    beginNavigation(cleanedGoal);
+  }, [goal, status, beginNavigation]);
+
+  // --- Auto-listen for a destination on launch ---
+  const listenForDestinationRef = useRef(null);
+  const listenForDestination = useCallback(() => {
+    setStatus('listening');
+    speak('Listening for your destination.');
+    recognitionStopRef.current = startRecognition(
+      async (transcript) => {
+        setGoal(transcript);
+        const { destination: cleanedGoal, ambiguous } = await extractDestination(transcript);
+        setGoal(cleanedGoal);
+
+        if (!ambiguous) {
+          setStatus('idle');
+          speak(`Heading to ${cleanedGoal}.`);
+          beginNavigation(cleanedGoal);
+          return;
+        }
+
+        // Uncertain transcript — confirm before doing anything irreversible (camera init, navigation)
+        setStatus('listening');
+        speak(`Did you say ${cleanedGoal}? Say yes or no.`);
+        recognitionStopRef.current = startRecognition(
+          (answer) => {
+            setStatus('idle');
+            if (answer.trim().toLowerCase().includes('yes')) {
+              speak(`Heading to ${cleanedGoal}.`);
+              beginNavigation(cleanedGoal);
+            } else {
+              speak('Okay, let’s try again.');
+              listenForDestinationRef.current();
+            }
+          },
+          () => {
+            setStatus('idle');
+            speak('Please type your destination or tap the mic to try again.');
+          }
+        );
+      },
+      () => {
+        setStatus('idle');
+        speak("Didn't catch that. Please type your destination or tap the mic to try again.");
+      }
+    );
+  }, [beginNavigation]);
+
+  useEffect(() => {
+    listenForDestinationRef.current = listenForDestination;
+  }, [listenForDestination]);
+
+  useEffect(() => {
+    if (!isRecognitionAvailable()) {
+      speak('Voice recognition is not available. Please type your destination.');
+      return;
+    }
+    listenForDestinationRef.current();
+    return () => recognitionStopRef.current?.();
+  }, []); // mount only
 
   // --- Stop navigation ---
   const handleStop = useCallback(async () => {

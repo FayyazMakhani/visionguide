@@ -87,6 +87,30 @@ Return JSON only, no other text:
 }
 
 /**
+ * Extracts a clean destination from arbitrary user phrasing (command,
+ * question, or indirect description) before navigation starts.
+ * @returns {string}
+ */
+export function buildDestinationExtractionPrompt() {
+  return `You extract a navigation destination from what a visually impaired user said or typed.
+The input may be a direct command ("take me to the bathroom"), a question ("where's the
+nearest exit?"), or an indirect description of a need ("I need to wash my hands", "there's
+a meeting in room 204, get me there").
+
+Return ONLY valid JSON, no preamble, no markdown:
+{
+  "destination": string
+}
+
+Rules:
+- destination should be a short noun phrase naming the place, e.g. "the bathroom", "room 204", "the nearest exit".
+- Infer the implied place for indirect descriptions (e.g. "wash my hands" -> "the bathroom" or "a sink").
+- If the input is already just a destination with no extra phrasing, return it unchanged.
+- If no destination can be identified at all, return the original input unchanged in destination.
+- Never return an empty string.`;
+}
+
+/**
  * Explore phase: the goal wasn't visible from the starting position, so the
  * user is walking through the building looking for it.
  * @param {string} goal

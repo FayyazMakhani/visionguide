@@ -108,3 +108,14 @@ export function buildUserMessage(goal, context, base64Frame) {
     ],
   };
 }
+
+/**
+ * @param {string} rawGoal - raw user utterance/typed text
+ * @returns {object}        - Anthropic user message object (text-only, no image)
+ */
+export function buildDestinationMessage(rawGoal) {
+  return {
+    role: 'user',
+    content: [{ type: 'text', text: rawGoal }],
+  };
+}

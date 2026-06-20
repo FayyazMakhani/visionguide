@@ -794,6 +794,22 @@
 
     <div class="req">
       <div class="req-header">
+        <span class="req-id">FR-NAV-04</span>
+        <span class="req-title">Destination extraction from arbitrary phrasing</span>
+        <span class="badge badge-mvp">MVP</span>
+      </div>
+      <div class="req-body">
+        The raw goal string from FR-NAV-01 is not limited to a fixed command template ("take me to X", "go to X") — it may be a direct command, a question, or an indirect description of a need (e.g. "I need to wash my hands", "there's a meeting in room 204, get me there"). Before navigation starts, the app resolves this raw input to a clean destination noun phrase via a single Claude text-only call.
+        <ul>
+          <li>Runs once, when Start is tapped — not on every keystroke or voice result. The text field continues to display the user's raw input until then.</li>
+          <li>If the extraction call fails (network/API error) or returns nothing usable, the app falls back to the raw input string and navigation still proceeds.</li>
+          <li>The resolved destination replaces the goal string used in all subsequent navigation speech and API calls (FR-NAV-02, FR-NAV-03, FR-SCAN-01–05) for the rest of the session.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="req">
+      <div class="req-header">
         <span class="req-id">FR-NAV-02</span>
         <span class="req-title">Navigation directions</span>
         <span class="badge badge-mvp">MVP</span>
@@ -1436,6 +1452,7 @@ Rules:
       <li><span class="ac-check"></span><strong>AC-NAV-03:</strong> The same direction is not spoken twice within 10 seconds.</li>
       <li><span class="ac-check"></span><strong>AC-NAV-04:</strong> When goal_found=true and goal_confidence≥0.8 in two consecutive frames, app speaks "You have arrived at [goal]" and stops the loop.</li>
       <li><span class="ac-check"></span><strong>AC-NAV-05:</strong> After arrival, no further API calls are made until the user restarts.</li>
+      <li><span class="ac-check"></span><strong>AC-NAV-06:</strong> Typing or speaking an indirect/descriptive phrase (e.g. "I need to wash my hands") or a full command phrase (e.g. "take me to the bathroom") resolves to a clean destination noun phrase before any navigation speech is generated; if the extraction call fails, the raw input is used instead and navigation still proceeds.</li>
     </ul>
 
     <h3>Scan &amp; Explore Phases</h3>

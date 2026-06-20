@@ -67,6 +67,13 @@ Update this file whenever the current phase, active feature, or implementation s
   - Scan-phase spec's own AT-SC-01–07 and AT-EX-01–06 all passed.
   - Resolves OQ-03 (demo device), OQ-04, OQ-05 (Week 2/3 on-device sign-off that Week 3/4 code was implemented ahead of) — see Open Questions.
   - Caveat not yet resolved: "Chrome on iOS" runs on Apple's WebKit engine (Apple requires all iOS browsers to use it), not Chrome's actual Blink engine — so this isn't independent confirmation of the PRD's Android-Chrome-specific APIs (`webkitSpeechRecognition`, `getUserMedia` constraints) working the same way the PRD assumes. The PRD (NFR-08, §7 Out of Scope) explicitly scopes iOS/Safari out for this reason. Flagged as a new open question rather than silently broadening NFR-08 — see OQ-08.
+- **`06-visionguide-destination-extraction-spec.md` implemented verbatim**, fixing a bug where the full raw command phrase (e.g. "take me to the bathroom") was spoken back verbatim in navigation messages instead of just the destination ("the bathroom"):
+  - `src/prompts/system.js` — added `buildDestinationExtractionPrompt()`.
+  - `src/api/claude.js` — added `buildDestinationMessage(rawGoal)` (text-only message, no image block); `callClaude()` itself needed no changes, it was already generic enough to reuse.
+  - `src/modules/destination.js` — new module, `extractDestination(rawGoal)`: calls Claude with the extraction prompt, falls back to the trimmed raw input on API failure or malformed/unusable response.
+  - `src/App.jsx` — `handleStart` now calls `extractDestination(goal)` once before navigation starts, updating both `goal` state and `loopStateRef.current` directly (the latter to avoid a race with the `useEffect`-based sync, since `startNavigating`'s deferred `startLoop` call reads `loopStateRef` directly).
+  - `src/components/GoalInput.jsx` intentionally left unchanged — it still stores/displays the raw user input until Start is tapped; extraction happens once, at Start, not per-keystroke or per-voice-result.
+  - Verified `npm run build` and `npm run lint` both pass clean.
 
 ## In Progress
 
@@ -98,6 +105,7 @@ Update this file whenever the current phase, active feature, or implementation s
 - No CSS files/design system introduced beyond inline styles needed to satisfy explicit component contract requirements (56px tap targets, 24px/18px font sizes) — spec is silent on visual design beyond accessibility numbers, so nothing speculative was added.
 - `stateRef` (goal/context) synced via `useEffect` rather than during render, to satisfy the `react-hooks/refs` lint rule while preserving the "loop always reads fresh state" behavior the spec calls for.
 - The WakeLock `visibilitychange` re-acquire listener (Week 2 spec §13) is attached once at module load in `camera.js`, exactly as the spec's snippet shows. Side effect: it will also attempt to silently re-acquire a WakeLock on any tab-visibility change even outside an active navigation session (guarded by `wakeLock === null`, fails silently if no permission context). Not a problem for MVP single-session use; flagged here in case it surprises someone reading the module in isolation.
+- Destination extraction (§06 spec) uses a Claude text-only call rather than a regex/keyword stripper — the user explicitly clarified destination phrasing isn't limited to fixed command templates ("take me to X") and may be any direct or indirect description of a place, which only a language-understanding approach can generalize across. This reuses the existing direct-from-browser Claude call pattern (`callClaude`) already in place for vision frames, rather than introducing a new API mechanism or a backend proxy.
 
 ## Session Notes
 

@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useCallback, Component } from 'react';
 import { initCamera, stopCamera } from './modules/camera.js';
 import { startLoop, stopLoop } from './modules/loop.js';
+import { extractDestination } from './modules/destination.js';
 import { speak, cancel, resetSpeech } from './modules/speech.js';
 import GoalInput from './components/GoalInput.jsx';
 import StartStopButton from './components/StartStopButton.jsx';
@@ -89,6 +90,12 @@ export default function App() {
   const handleStart = useCallback(async () => {
     if (!goal.trim()) return;
     if (status === 'navigating') return;
+
+    const cleanedGoal = await extractDestination(goal);
+    if (cleanedGoal !== goal) {
+      setGoal(cleanedGoal);
+      loopStateRef.current = { ...loopStateRef.current, goal: cleanedGoal };
+    }
 
     // Initialize camera if not already running
     if (!streamRef.current) {

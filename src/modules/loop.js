@@ -25,6 +25,7 @@ import {
 
 let intervalId = null;
 let pending = false;
+let abortController = null;
 let lastSilenceFiredAt = 0;
 let consecutiveStaleDrops = 0;
 let lastStaleWarningAt = 0;
@@ -92,6 +93,7 @@ export function startLoop(videoEl, streamRef, stateRef, callbacks) {
 
     const capturedAt = Date.now();
     pending = true;
+    abortController = new AbortController();
 
     // Silence fallback: if no response within API_TIMEOUT_MS, speak holding message
     // throttled to once per SILENCE_HOLDOFF_MS so a slow API doesn't trigger it every cycle
@@ -114,7 +116,7 @@ export function startLoop(videoEl, streamRef, stateRef, callbacks) {
         phase === 'explore' ? buildExplorePrompt(goal) :
         buildSystemPrompt('navigation');
 
-      const result = await callClaude(systemPrompt, [buildUserMessage(goal, context, frame)]);
+      const result = await callClaude(systemPrompt, [buildUserMessage(goal, context, frame)], abortController.signal);
 
       clearTimeout(silenceTimer);
 
@@ -204,6 +206,9 @@ export function startLoop(videoEl, streamRef, stateRef, callbacks) {
     } catch (err) {
       clearTimeout(silenceTimer);
 
+      // Stop() aborts the in-flight request intentionally — not an error, nothing to speak or report
+      if (err.name === 'AbortError') return;
+
       if (err.message === 'rate_limited') {
         speak('Connection slow. Pausing briefly.');
         callbacks.onSpeak('Connection slow. Pausing briefly.');
@@ -265,6 +270,10 @@ export function startLoop(videoEl, streamRef, stateRef, callbacks) {
  * Resets phase to 'scan' so the next Start always begins there.
  */
 export function stopLoop() {
+  if (abortController !== null) {
+    abortController.abort();
+    abortController = null;
+  }
   if (intervalId !== null) {
     clearInterval(intervalId);
     intervalId = null;

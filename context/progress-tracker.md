@@ -74,6 +74,12 @@ Update this file whenever the current phase, active feature, or implementation s
   - `src/App.jsx` — `handleStart` now calls `extractDestination(goal)` once before navigation starts, updating both `goal` state and `loopStateRef.current` directly (the latter to avoid a race with the `useEffect`-based sync, since `startNavigating`'s deferred `startLoop` call reads `loopStateRef` directly).
   - `src/components/GoalInput.jsx` intentionally left unchanged — it still stores/displays the raw user input until Start is tapped; extraction happens once, at Start, not per-keystroke or per-voice-result.
   - Verified `npm run build` and `npm run lint` both pass clean.
+- **Stop button bug fixes** (found via manual testing, not a numbered spec — two related issues with `handleStop` not actually stopping everything):
+  - Bug 1 — Stop pressed during the post-Start 2.5s "hold your phone" delay (`App.jsx` §8.5) did nothing: `startLoop` was queued in a bare `setTimeout` that `handleStop` never tracked or cancelled, so navigation started anyway once the timeout fired, even though the user had already pressed Stop. Fixed by storing that timeout in `startTimeoutRef` and clearing it in both `handleStop` and the unmount cleanup effect.
+  - Bug 2 — Stop pressed while a frame was mid-flight to Claude didn't stop that request: `callClaude`'s `fetch` had no `AbortController`, so an in-flight call would complete and still run `speak()`/`onSpeak`/`onContextUpdate`/`onArrival` after Stop was pressed. Fixed by threading an `AbortSignal` from `loop.js` (new module-level `abortController`, created per tick, aborted in `stopLoop()`) through to `claude.js`'s `fetch`; both files now treat `AbortError` as a silent intentional cancellation, not a network failure to recover from.
+  - Bug 3 — Stop never released the camera/WakeLock: `handleStop` only called `stopLoop()`/`resetSpeech()`, leaving `streamRef.current` and the live camera stream running until unmount. Fixed by having `handleStop` call `stopCamera(streamRef.current)` and null out `streamRef.current`, matching what already happened on unmount — Stop now returns the app to the same pristine state as before Start was first pressed (camera off, no pending network calls, no queued speech).
+  - Files touched: `src/App.jsx`, `src/modules/loop.js`, `src/api/claude.js`. No constants or spec files changed.
+  - Verified `npm run lint` passes clean on the touched files.
 
 ## In Progress
 

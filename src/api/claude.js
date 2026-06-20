@@ -10,10 +10,11 @@ if (!API_KEY) {
 /**
  * @param {string} systemPrompt
  * @param {Array} messages       - Anthropic messages array
+ * @param {AbortSignal} [signal] - Aborts the in-flight request (e.g. on Stop)
  * @returns {Promise<object>}    - Parsed JSON from Claude
- * @throws {Error}               - 'network_failure' | 'rate_limited' | 'api_error_<status>'
+ * @throws {Error}               - 'network_failure' | 'rate_limited' | 'api_error_<status>' | DOMException 'AbortError'
  */
-export async function callClaude(systemPrompt, messages) {
+export async function callClaude(systemPrompt, messages, signal) {
   let response;
 
   try {
@@ -33,9 +34,11 @@ export async function callClaude(systemPrompt, messages) {
         ],
         messages,
       }),
+      signal,
     });
   } catch (networkErr) {
-    // Network failure — fetch itself threw (offline, DNS failure, etc.)
+    // Propagate abort as-is — it's an intentional cancellation (e.g. Stop), not a network failure
+    if (networkErr.name === 'AbortError') throw networkErr;
     console.warn('Network error:', networkErr.message);
     throw new Error('network_failure', { cause: networkErr });
   }

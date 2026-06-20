@@ -54,6 +54,7 @@ export default function App() {
   // --- Refs ---
   const videoRef = useRef(null);
   const streamRef = useRef(null);
+  const startTimeoutRef = useRef(null);
 
   // Keep loopStateRef in sync with state so the interval reads fresh values
   const loopStateRef = useRef({ goal, context });
@@ -112,7 +113,8 @@ export default function App() {
       setContext([]);
       // Most common demo failure is holding the phone at the wrong angle — say so before the loop starts
       speak('Hold your phone at chest height, pointing forward.');
-      setTimeout(() => {
+      startTimeoutRef.current = setTimeout(() => {
+        startTimeoutRef.current = null;
         startLoop(videoRef.current, streamRef, loopStateRef, {
           onSpeak: handleSpeak,
           onContextUpdate: handleContextUpdate,
@@ -140,9 +142,17 @@ export default function App() {
   }, [goal, status, handleSpeak, handleContextUpdate, handleArrival, handleError]);
 
   // --- Stop navigation ---
-  const handleStop = useCallback(() => {
+  const handleStop = useCallback(async () => {
+    if (startTimeoutRef.current !== null) {
+      clearTimeout(startTimeoutRef.current);
+      startTimeoutRef.current = null;
+    }
     stopLoop();
     resetSpeech();
+    if (streamRef.current) {
+      await stopCamera(streamRef.current);
+      streamRef.current = null;
+    }
     setStatus('idle');
     setLastSpoken('');
   }, []);
@@ -150,6 +160,10 @@ export default function App() {
   // --- Cleanup on unmount ---
   useEffect(() => {
     return () => {
+      if (startTimeoutRef.current !== null) {
+        clearTimeout(startTimeoutRef.current);
+        startTimeoutRef.current = null;
+      }
       stopLoop();
       cancel();
       if (streamRef.current) {

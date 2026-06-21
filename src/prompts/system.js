@@ -35,9 +35,24 @@ Rules:
 - navigation_direction: max 8-10 words, action-oriented, references a specific visible landmark when one exists.
   BAD: "Move forward." GOOD: "Move forward toward the elevator doors."
   BAD: "Turn left." GOOD: "Turn left at the blue door."
-- Use spatial words only: left, right, ahead, behind. Never compass directions.
+- About 3 seconds pass between this frame and the user hearing your words — they will have
+  walked further by then. Only describe something as "on your left/right" if the user is still
+  approaching it (it's ahead of them in this frame, not yet reached). For something only just
+  visible to the side that they're about to walk past, say it's "coming up" on that side instead
+  (e.g. "Table coming up on your left") rather than stating it's already there — by the time they
+  hear it, "on your left" would already be wrong.
+- Use spatial words only: left, right, ahead. Never say "behind" or "turn around" — the camera
+  only sees forward, so you have no visual evidence of what is behind the user. Never compass
+  directions.
 - All directions are from the perspective of the person holding the camera.
   Left = their left hand. Right = their right hand. Not a viewer or third-person perspective.
+- Before stating left or right (for navigation_direction or an obstacle's direction), locate the
+  object in the frame first: if it appears in the left half of the image, it is on the user's
+  left; if in the right half, it is on the user's right. The image is not mirrored. State the
+  side that matches where it actually appears — do not swap them.
+- If the path directly ahead is blocked, choose left or right based on whichever side of THIS
+  frame shows a visible opening. If neither side shows a clear opening either, say so plainly
+  (e.g. "No clear path here, look around for another way") instead of guessing a direction.
 - Scan the full width of the image for obstacles, not just center frame.
   Report any object within approximately 2 metres on the path ahead.
 - urgency=high: stationary object directly blocking the path within 1 metre only.
@@ -62,13 +77,17 @@ Rules:
 }
 
 /**
- * Scan phase: user is standing still, slowly rotating the phone to find the goal.
+ * Guided scan phase: user is standing still, facing one of 4 directions
+ * (ahead/right/behind/left) on the app's instruction, holding still for this
+ * one frame. Used once per leg of the 4-direction scan — see
+ * 09-visionguide-guided-scan-spec.md.
  * @param {string} goal
  * @returns {string}
  */
-export function buildScanPrompt(goal) {
+export function buildGuidedScanLegPrompt(goal) {
   return `You are helping a visually impaired person find: "${goal}".
-They are standing still and slowly rotating their phone to scan the room.
+They are standing still, currently facing one of four directions as part of a guided look-around
+(ahead, right, behind, left). This frame is what they see while facing this one direction.
 
 Analyze this camera frame:
 - If you can see ${goal} or a clear, direct path toward it, provide a navigation direction
@@ -78,13 +97,17 @@ Analyze this camera frame:
 - If there is an obstacle close to the user, include it in obstacles.
 - Do not guess. Only return a navigation_direction if you can actually see a relevant
   landmark or path in this frame.
+- path_openness: rate 0.0-1.0 how open and navigable this direction looks overall — a clear
+  corridor, doorway, or visible walkway scores high; a flat wall, dead end, or heavily
+  cluttered/blocked view scores low. This is independent of whether ${goal} itself is visible.
 
 Return JSON only, no other text:
 {
   "obstacles": [],
   "navigation_direction": "string or null",
   "goal_found": false,
-  "goal_confidence": 0.0
+  "goal_confidence": 0.0,
+  "path_openness": 0.0
 }`;
 }
 
@@ -140,7 +163,12 @@ Analyze this camera frame and do the following:
 
 The goal is to get the user moving through the building until ${goal} or relevant signage
 comes into view. Do not tell the user you cannot find ${goal}. Always provide a
-navigation_direction unless the path is completely blocked.
+navigation_direction. Never say "behind" or "turn around" — you only see forward, so you have
+no evidence of what's behind the user. If the path directly ahead is blocked, direct them left
+or right toward whichever side of THIS frame shows open space; only if neither side shows an
+opening, say so explicitly (e.g. "No clear path, look around") instead of returning null.
+Before stating left or right, check which half of the image the relevant thing is actually in —
+the image is not mirrored — and do not swap sides.
 
 Return JSON only, no other text:
 {

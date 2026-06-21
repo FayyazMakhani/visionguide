@@ -2,13 +2,14 @@
 
 import { getFrame, checkFrozenFrame, reinitCamera } from './camera.js';
 import { callClaude, buildUserMessage } from '../api/claude.js';
-import { buildSystemPrompt, buildScanPrompt, buildExplorePrompt } from '../prompts/system.js';
+import { buildSystemPrompt, buildGuidedScanLegPrompt, buildExplorePrompt } from '../prompts/system.js';
 import { speak } from './speech.js';
 import { routeObstacles, resetObstacles } from './obstacles.js';
 import { trackGoal, resetGoalTracker } from './goalTracker.js';
 import { extractLandmarks, resetLandmarks } from './landmarks.js';
 import { recordGoalSighting, resetGoalMemory } from './goalMemory.js';
 import { initGyroscope, isRotatingTooFast, shouldWarnRotationSpeed } from './gyroscope.js';
+import * as guidedScan from './guidedScan.js';
 import {
   LOOP_INTERVAL_MS,
   API_TIMEOUT_MS,
@@ -39,10 +40,14 @@ let scanTimerId = null;
 let exploreTimerId = null;
 
 /**
- * Start the navigation loop. Always begins in scan phase: the user holds the
- * phone up and rotates slowly while Claude looks for the goal. If the goal
- * isn't found within SCAN_TIMEOUT_MS, the loop falls through to explore phase
- * (walking guidance) and finally to navigate phase once the goal is found.
+ * Start the navigation loop. Always begins in scan phase: a guided
+ * 4-direction look-around (ahead/right/behind/left — see
+ * 09-visionguide-guided-scan-spec.md) where Claude checks each direction in
+ * turn for the goal. If the goal isn't found directly, the loop falls
+ * through to explore phase (walking guidance, pointed toward whichever
+ * direction looked most promising) and finally to navigate phase once the
+ * goal is found. SCAN_TIMEOUT_MS is an overall safety net in case a leg's
+ * turn-detection never resolves.
  *
  * @param {HTMLVideoElement} videoEl      - Live camera feed element
  * @param {React.MutableRefObject} streamRef - Ref to the active MediaStream (updatable on frozen-frame reinit)
@@ -65,16 +70,31 @@ export function startLoop(videoEl, streamRef, stateRef, callbacks) {
 
   initGyroscope();
   phase = 'scan';
+  guidedScan.resetGuidedScan();
 
   async function tick() {
     // Guard: skip if prior call is still in flight
     if (pending) return;
 
-    if (phase === 'scan' && isRotatingTooFast()) {
-      if (shouldWarnRotationSpeed()) {
+    if (phase === 'scan') {
+      if (isRotatingTooFast() && shouldWarnRotationSpeed()) {
         speak('A little slower.', false, () => callbacks.onSpeak('A little slower.'));
       }
-      return;
+
+      // Guided scan: don't capture/analyze a frame until the user has
+      // finished turning into this leg and held still for a moment —
+      // see 09-visionguide-guided-scan-spec.md.
+      if (guidedScan.isAwaitingTurn()) {
+        if (guidedScan.checkTurnProgress()) {
+          speak('Stop.', false, () => callbacks.onSpeak('Stop.'));
+        }
+        return;
+      }
+
+      if (guidedScan.isSettling()) {
+        guidedScan.checkSettleProgress();
+        return;
+      }
     }
 
     // Capture frame
@@ -114,7 +134,7 @@ export function startLoop(videoEl, streamRef, stateRef, callbacks) {
       const { goal, context } = stateRef.current;
 
       const systemPrompt =
-        phase === 'scan' ? buildScanPrompt(goal) :
+        phase === 'scan' ? buildGuidedScanLegPrompt(goal) :
         phase === 'explore' ? buildExplorePrompt(goal) :
         buildSystemPrompt('navigation');
 
@@ -129,11 +149,16 @@ export function startLoop(videoEl, streamRef, stateRef, callbacks) {
         const isStale = Date.now() - capturedAt > STALE_FRAME_MS;
         const foundGoal = !isStale && result.navigation_direction && result.goal_confidence >= SCAN_MIN_CONFIDENCE;
 
+        if (result.obstacles?.length > 0) {
+          routeObstacles(result.obstacles);
+        }
+
         if (foundGoal) {
-          if (phase === 'scan' && scanTimerId !== null) {
+          if (scanTimerId !== null) {
             clearTimeout(scanTimerId);
             scanTimerId = null;
-          } else if (phase === 'explore' && exploreTimerId !== null) {
+          }
+          if (exploreTimerId !== null) {
             clearTimeout(exploreTimerId);
             exploreTimerId = null;
           }
@@ -147,15 +172,28 @@ export function startLoop(videoEl, streamRef, stateRef, callbacks) {
           return;
         }
 
-        if (result.obstacles?.length > 0) {
-          routeObstacles(result.obstacles);
+        if (phase === 'scan') {
+          guidedScan.recordLegResult(isStale ? { obstacles: result.obstacles } : result);
+
+          if (guidedScan.hasMoreLegs()) {
+            guidedScan.beginNextLegTurn();
+            speak('Turn right and stop.', false, () => callbacks.onSpeak('Turn right and stop.'));
+            return;
+          }
+
+          finishGuidedScan();
+          return;
         }
 
         // Explore phase only: guide toward navigable space even though the
         // goal itself hasn't been confirmed (goal_confidence below threshold).
-        if (phase === 'explore' && result.navigation_direction && !isStale) {
-          speak(result.navigation_direction, false, () => callbacks.onSpeak(result.navigation_direction));
-          callbacks.onContextUpdate(result.navigation_direction);
+        // Always say something actionable, even when the model returns no
+        // direction (e.g. a fully blocked view) — never leave the user with
+        // silence once explore phase has started.
+        if (!isStale) {
+          const direction = result.navigation_direction || "I don't see a clear path. Try turning left or right.";
+          speak(direction, false, () => callbacks.onSpeak(direction));
+          callbacks.onContextUpdate(direction);
         }
         return;
       }
@@ -235,17 +273,40 @@ export function startLoop(videoEl, streamRef, stateRef, callbacks) {
     }
   }
 
-  function onScanTimeout() {
-    scanTimerId = null;
+  // Shared hand-off from scan to explore phase, used both when the guided
+  // scan completes (with or without a winning direction) and as the overall
+  // safety-net timeout (scanTimerId) in case a leg never resolves.
+  function transitionToExplore(message) {
+    if (scanTimerId !== null) {
+      clearTimeout(scanTimerId);
+      scanTimerId = null;
+    }
     phase = 'explore';
     exploreTimerId = setTimeout(onExploreTimeout, EXPLORE_TIMEOUT_MS);
 
     clearInterval(intervalId);
     intervalId = setInterval(tick, EXPLORE_INTERVAL_MS);
 
+    speak(message, false, () => callbacks.onSpeak(message));
+  }
+
+  function onScanTimeout() {
     const goal = stateRef.current.goal;
-    const msg = `I'll guide you through the building to find ${goal}. Follow my directions.`;
-    speak(msg, false, () => callbacks.onSpeak(msg));
+    transitionToExplore(`I'll guide you through the building to find ${goal}. Follow my directions.`);
+  }
+
+  // Called once all 4 guided-scan legs are recorded without finding the
+  // goal directly. Either hands off to explore with a concrete turn
+  // instruction toward the most promising direction seen, or — if nothing
+  // stood out — falls back to the same generic explore hand-off as a scan
+  // timeout.
+  function finishGuidedScan() {
+    const decision = guidedScan.decide();
+    if (decision.type === 'direction') {
+      transitionToExplore(decision.instruction);
+    } else {
+      onScanTimeout();
+    }
   }
 
   function onExploreTimeout() {
@@ -256,12 +317,15 @@ export function startLoop(videoEl, streamRef, stateRef, callbacks) {
     stopLoop();
   }
 
+  // Overall safety net for the whole guided scan (4 legs), in case a leg's
+  // turn never resolves (e.g. no gyro data and a hung fallback) — falls
+  // back to explore phase exactly like a free-rotation scan timeout would.
   scanTimerId = setTimeout(onScanTimeout, SCAN_TIMEOUT_MS);
 
   // Must enqueue after the safety prompt — speak() queues onto SpeechQueue
   // rather than speaking immediately, so it naturally plays after whatever
   // App.jsx already queued before calling startLoop.
-  const scanInstruction = "Hold your phone up and slowly scan the area. I'll guide you when I see something.";
+  const scanInstruction = 'Hold your phone up, facing forward, and hold still.';
   speak(scanInstruction, false, () => callbacks.onSpeak(scanInstruction));
 
   intervalId = setInterval(tick, SCAN_INTERVAL_MS);

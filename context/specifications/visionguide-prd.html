@@ -820,6 +820,22 @@
         <ul>
           <li>Directions must use compass-free language: "turn left", "straight ahead", "move right"</li>
           <li>Same direction must not be spoken twice consecutively unless &gt;10 seconds have elapsed</li>
+          <li>Directions must never say "behind" or instruct the user to turn around — the camera only sees forward, so there is no visual evidence for anything behind the user. If the path ahead is blocked, guidance must pick left or right based on which side of the current frame shows an opening, or state plainly that there's no clear path, rather than guess (see FR-NAV-07).</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="req">
+      <div class="req-header">
+        <span class="req-id">FR-NAV-07</span>
+        <span class="req-title">Grounded direction guidance</span>
+        <span class="badge badge-mvp">MVP</span>
+      </div>
+      <div class="req-body">
+        Two mitigations for direction guidance that isn't grounded in what the current frame actually shows, applied to the navigate (FR-NAV-02), explore (FR-SCAN-04), and guided-scan (FR-SCAN-06) prompts alike:
+        <ul>
+          <li><strong>No unseen-direction guessing:</strong> the model is never told it may say "behind"/instruct a turn-around — only left/right/ahead, which the current frame can actually support. When the path ahead is blocked, it must choose left or right toward a visible opening in that same frame, or state explicitly that no clear path is visible.</li>
+          <li><strong>Left/right self-check:</strong> before stating left or right (for a navigation direction or an obstacle's reported side), the model is instructed to locate the object in the frame first — left half of the image is the user's left, right half is the user's right, the image is not mirrored — and state the matching side. This is a mitigation for a known vision-model spatial-reasoning weakness (mirrored left/right reports), not a guaranteed fix; see <code>prompt-tuning-log.md</code>'s "Wrong direction" failure category for ongoing tracking.</li>
         </ul>
       </div>
     </div>
@@ -879,17 +895,18 @@
     <div class="req">
       <div class="req-header">
         <span class="req-id">FR-SCAN-01</span>
-        <span class="req-title">Scan phase on Start</span>
+        <span class="req-title">Guided 4-direction scan on Start</span>
         <span class="badge badge-mvp">MVP</span>
       </div>
       <div class="req-body">
-        The phone may not be pointed at the destination when navigation starts. Before the normal navigation loop begins, every Start tap enters a <strong>scan phase</strong>: the user holds the phone up and slowly rotates it while Claude looks for the destination in frame.
+        The phone may not be pointed at the destination when navigation starts, and a free, unguided rotation gave the user no way to tell which way to start walking once it ended. Every Start tap now enters a <strong>guided scan phase</strong>: the app instructs the user to turn roughly 90° right and stop, four times in a row (covering ahead, right, behind, and left relative to where they started), analyzing one still frame per stop instead of a continuous rotating sweep (superseded: scan no longer requires continuous slow rotation; supersedes the previous free-rotation behavior of this requirement).
         <ul>
-          <li>Frame capture interval during scan: 500ms (2 fps) — faster than navigation since the user is stationary, not walking</li>
-          <li>Uses a dedicated scan prompt distinct from the navigation prompt</li>
-          <li>Exits to navigation phase once Claude returns a non-null <code>navigation_direction</code> with <code>goal_confidence</code> at or above 0.5 — a lower bar than the 0.8 arrival threshold in FR-NAV-03, sufficient only to start guiding the user toward what was seen</li>
-          <li>The scan instruction must enqueue in SpeechQueue after the mandatory safety prompt (FR-UI-03), never interrupting it</li>
-          <li>Same stale-frame guard as navigate phase (R-01): a response is dropped (no phase transition, no spoken direction) if its frame is older than 4500ms when the response arrives — obstacles in that frame are still routed</li>
+          <li>Frame capture only happens once per stop (after the turn completes and a brief settle pause), not continuously — see FR-SCAN-02 for turn-completion detection</li>
+          <li>Uses a dedicated per-leg scan prompt distinct from the navigation prompt, which also returns a <code>path_openness</code> score (0.0–1.0) for that direction</li>
+          <li>Exits to navigation phase immediately, skipping remaining stops, once any stop's frame returns a non-null <code>navigation_direction</code> with <code>goal_confidence</code> at or above 0.5 — same threshold as before</li>
+          <li>If no stop finds the destination, see FR-SCAN-06 for what happens after all four are analyzed</li>
+          <li>The first stop's instruction must enqueue in SpeechQueue after the mandatory safety prompt (FR-UI-03), never interrupting it</li>
+          <li>Same stale-frame guard as navigate phase (R-01): a response is dropped (no phase transition, no spoken direction, leg recorded as unscored) if its frame is older than 4500ms when the response arrives — obstacles in that frame are still routed</li>
         </ul>
       </div>
     </div>
@@ -897,15 +914,17 @@
     <div class="req">
       <div class="req-header">
         <span class="req-id">FR-SCAN-02</span>
-        <span class="req-title">Gyroscope-gated capture during scan</span>
+        <span class="req-title">Gyroscope-gated turn detection during scan</span>
         <span class="badge badge-mvp">MVP</span>
       </div>
       <div class="req-body">
-        Rotating the phone too quickly during scan phase produces blurred, unanalyzable frames. The app tracks yaw rate via <code>DeviceMotionEvent</code> and skips frame capture above 30°/s, speaking "A little slower." if the user hasn't been warned in the last 2.5 seconds.
+        The app tracks yaw rate and cumulative turn angle via <code>DeviceMotionEvent</code> to know when each scan stop's ~90° turn is complete, and still warns "A little slower." (no more than once per 2.5s) if rotation exceeds 30°/s — fast rotation both blurs the eventual frame and degrades the turn-angle estimate.
         <ul>
-          <li>Gyroscope gating applies only during scan phase. Explore and navigate phases never block on rotation speed.</li>
-          <li>On a device without <code>DeviceMotionEvent</code> support, the rotation check must always report "not too fast" so scan phase proceeds unblocked rather than stalling.</li>
-          <li>Initialize gyroscope listening inside the Start tap handler, not on page load — required for permission on some Android versions.</li>
+          <li>A stop's turn is considered complete once accumulated rotation is within 10° of the 90° target, or — if no rotation-rate data is available at all (denied permission, unsupported browser) — once a fixed 2.5s fallback dwell has elapsed for that stop, so scan phase can never hang waiting on a sensor that isn't there</li>
+          <li>On iOS 13+, an explicit <code>DeviceMotionEvent.requestPermission()</code> prompt is requested when starting the loop (inside the same Start-tap gesture), since rotation events otherwise never fire there at all</li>
+          <li>Gyroscope use is purely relative (rotation rate integrated over time) — never an absolute/magnetometer heading, and never spoken to the user as a compass direction</li>
+          <li>A brief settle pause (~600ms) after each detected stop, before capturing, avoids analyzing a motion-blurred frame</li>
+          <li>Gating applies only during scan phase. Explore and navigate phases never block on rotation speed.</li>
         </ul>
       </div>
     </div>
@@ -917,7 +936,7 @@
         <span class="badge badge-mvp">MVP</span>
       </div>
       <div class="req-body">
-        If the destination is not visible from the starting position (e.g. around a corner), the app must not give up. If 20 seconds elapse in scan phase without a destination match, the app automatically begins an <strong>explore phase</strong>: it speaks an explore announcement and switches the capture interval to 1000ms (1 fps), since the user is now walking rather than standing still.
+        The 4-stop scan must not be able to hang indefinitely (e.g. a stop's turn never registering as complete). If 20 seconds elapse in scan phase without completing the sequence, the app falls back to the same generic explore announcement described in FR-SCAN-06's "no clear direction" case and switches the capture interval to 1000ms (1 fps), since the user is now walking rather than standing still.
       </div>
     </div>
 
@@ -932,6 +951,8 @@
         <ul>
           <li><code>goal_confidence</code> distinguishes a true destination match (&ge;0.5, transitions to navigate phase) from general walking guidance toward navigable space (direction returned at confidence 0.0)</li>
           <li>Obstacle alerts continue to fire during explore phase using the existing ObstacleRouter behavior (FR-OBS-01)</li>
+          <li>The app must never go silent on a non-stale explore frame: if Claude returns no <code>navigation_direction</code> (e.g. a fully blocked view), the app speaks a fallback ("I don't see a clear path. Try turning left or right.") instead of saying nothing</li>
+          <li>Subject to the same grounded-direction rules as navigate phase — see FR-NAV-07</li>
         </ul>
       </div>
     </div>
@@ -944,6 +965,22 @@
       </div>
       <div class="req-body">
         If 90 seconds elapse in explore phase without a destination match, the app speaks "I wasn't able to find [goal]. Please ask someone nearby for help." and performs a full Stop. The next Start always begins again in scan phase.
+      </div>
+    </div>
+
+    <div class="req">
+      <div class="req-header">
+        <span class="req-id">FR-SCAN-06</span>
+        <span class="req-title">Guided scan direction hand-off</span>
+        <span class="badge badge-mvp">MVP</span>
+      </div>
+      <div class="req-body">
+        If none of the 4 scan stops find the destination directly (FR-SCAN-01), the app must not hand off to explore phase with no real direction — the previous free-rotation behavior's generic "follow my directions" message gave the user nothing concrete to act on, especially if the phone happened to end the scan facing a wall.
+        <ul>
+          <li>The stop with the highest <code>path_openness</code> score is chosen, unless any of its obstacles is <code>urgency: "high"</code> (treated as fully blocked, score 0)</li>
+          <li>If the best stop's score is at or above 0.4, the app speaks a concrete turn instruction toward it before entering explore phase — e.g. "Turn right, I saw an open hallway that way," "Turn around, there's a clearer path behind you," or "Stay facing this way" if the best stop is the direction already faced. The turn is computed relative to the user's current facing (after the 4th stop), not as a compass heading.</li>
+          <li>If no stop's score reaches 0.4 (all roughly equally blocked or open), the app falls back to the same generic explore announcement as a scan timeout (FR-SCAN-03) rather than guessing further</li>
+        </ul>
       </div>
     </div>
 
@@ -1304,10 +1341,13 @@ Rules:
     <p>Initializes <code>getUserMedia</code>, renders stream to <code>&lt;video&gt;</code>, requests WakeLock. Exposes <code>getFrame(): string</code> which draws to canvas and returns base64 JPEG.</p>
 
     <h3>NavigationLoop</h3>
-    <p>Owns the <code>setInterval</code> and the <code>scan → explore → navigate</code> phase state machine (FR-SCAN-01–05). Phase determines the capture interval (500ms scan, 1000ms explore/navigate), which prompt is sent, whether gyroscope gating applies (scan only), and the confidence threshold for transitioning toward the destination. Checks <code>pending</code> flag before calling. Calls <code>CameraStream.getFrame()</code>, assembles payload, POSTs directly to <code>https://api.anthropic.com/v1/messages</code> with the key from <code>import.meta.env.VITE_ANTHROPIC_API_KEY</code>, sets <code>pending = false</code> on resolution. Drops response if frame was captured more than 1500ms ago. Phase resets to <code>scan</code> on every Stop.</p>
+    <p>Owns the <code>setInterval</code> and the <code>scan → explore → navigate</code> phase state machine (FR-SCAN-01–06). Phase determines the capture interval (500ms scan, 1000ms explore/navigate), which prompt is sent, whether gyroscope gating applies (scan only), and the confidence threshold for transitioning toward the destination. During scan phase, frame capture is additionally gated by GuidedScan's per-stop turn/settle staging — no frame is captured until a stop's turn is complete and the brief settle dwell has elapsed. Checks <code>pending</code> flag before calling. Calls <code>CameraStream.getFrame()</code>, assembles payload, POSTs directly to <code>https://api.anthropic.com/v1/messages</code> with the key from <code>import.meta.env.VITE_ANTHROPIC_API_KEY</code>, sets <code>pending = false</code> on resolution. Drops response if frame was captured more than 1500ms ago. Phase and GuidedScan's stop sequence both reset on every Stop.</p>
 
     <h3>Gyroscope</h3>
-    <p>Singleton wrapping <code>DeviceMotionEvent</code>, used only during scan phase. Initialized inside the Start tap handler, not on page load. Exposes <code>isRotatingTooFast()</code> (true above 30°/s yaw rate; always <code>false</code> if <code>DeviceMotionEvent</code> is unavailable, so scan phase is never blocked on unsupported devices) and <code>shouldWarnRotationSpeed()</code> (debounced to at most once per 2.5 seconds).</p>
+    <p>Singleton wrapping <code>DeviceMotionEvent</code>, used only during scan phase. Initialized inside the Start tap handler, not on page load — also requests iOS's <code>DeviceMotionEvent.requestPermission()</code> there, in the same gesture context, since iOS 13+ otherwise never fires rotation events at all. Exposes <code>isRotatingTooFast()</code> (true above 30°/s yaw rate; always <code>false</code> if <code>DeviceMotionEvent</code> is unavailable, so scan phase is never blocked on unsupported devices) and <code>shouldWarnRotationSpeed()</code> (debounced to at most once per 2.5 seconds). Also integrates signed rotation rate over time into a resettable accumulator (<code>resetTurnAccumulator()</code> / <code>getAccumulatedTurnDegrees()</code>) used by GuidedScan to detect when a stop's ~90° turn is complete, plus <code>hasGyroData()</code> so callers can fall back to a timer when no rotation data is available at all.</p>
+
+    <h3>GuidedScan</h3>
+    <p>Owns the 4-stop scan sequence (FR-SCAN-01/02/06): <code>ahead → right → behind → left</code>, each reached by a ~90° turn detected via Gyroscope (or a fixed dwell-time fallback). Stages each stop through <code>awaiting_turn → settling → ready</code> before NavigationLoop captures and analyzes a frame. Records each stop's <code>path_openness</code>/obstacles/<code>navigation_direction</code>, and after all 4 are recorded (with no earlier goal-found short-circuit), <code>decide()</code> picks the highest-scoring open, unblocked stop and returns a relative turn instruction toward it, or reports no clear direction if none clears the minimum openness bar.</p>
 
     <h3>ObstacleRouter</h3>
     <p>Receives parsed JSON. Maintains a <code>consecutiveHighCount</code> counter. On <code>urgency: high</code>, increments counter; fires interrupt only when counter reaches 2. Resets counter on any non-high frame. Medium urgency enqueues. Low urgency discards.</p>
@@ -1510,14 +1550,18 @@ Rules:
 
     <h3>Scan &amp; Explore Phases</h3>
     <ul class="ac-list">
-      <li><span class="ac-check"></span><strong>AC-SCAN-01:</strong> Tapping Start always plays the scan instruction before any navigation direction is spoken. On the first Start of the calendar day, the safety prompt plays first; on later Starts that same day, the scan instruction plays directly without the safety prompt repeating.</li>
-      <li><span class="ac-check"></span><strong>AC-SCAN-02:</strong> Rotating the phone faster than 30°/s during scan phase suppresses frame analysis and triggers "A little slower.", spoken no more than once per 2.5 seconds.</li>
-      <li><span class="ac-check"></span><strong>AC-SCAN-03:</strong> When the destination or a relevant sign enters frame while rotating slowly, the app speaks the navigation direction within 2–3 frames and switches to navigate phase at 1 fps.</li>
-      <li><span class="ac-check"></span><strong>AC-SCAN-04:</strong> An obstacle detected during scan phase fires the existing obstacle alert without exiting scan phase.</li>
-      <li><span class="ac-check"></span><strong>AC-SCAN-05:</strong> If no destination match occurs within 20 seconds of scan phase starting, the app automatically begins explore phase without user input and without stopping.</li>
-      <li><span class="ac-check"></span><strong>AC-SCAN-06:</strong> During explore phase, the app gives walking guidance toward open space or signage at 1 fps, and transitions to navigate phase as soon as the destination becomes visible.</li>
+      <li><span class="ac-check"></span><strong>AC-SCAN-01:</strong> Tapping Start always plays the "hold still, facing forward" instruction before any navigation direction is spoken. On the first Start of the calendar day, the safety prompt plays first; on later Starts that same day, the scan instruction plays directly without the safety prompt repeating.</li>
+      <li><span class="ac-check"></span><strong>AC-SCAN-02:</strong> Rotating the phone faster than 30°/s during a scan-phase turn triggers "A little slower.", spoken no more than once per 2.5 seconds, without preventing turn-completion detection from still progressing.</li>
+      <li><span class="ac-check"></span><strong>AC-SCAN-03:</strong> If the destination or a relevant sign is visible at any of the 4 scan stops, the app speaks the navigation direction for that stop and switches to navigate phase immediately, skipping any remaining stops.</li>
+      <li><span class="ac-check"></span><strong>AC-SCAN-04:</strong> An obstacle detected at any scan stop fires the existing obstacle alert without exiting scan phase.</li>
+      <li><span class="ac-check"></span><strong>AC-SCAN-05:</strong> If the 4-stop scan sequence does not complete within 20 seconds (e.g. a turn never registers as done), the app automatically begins explore phase with the generic hand-off message, without user input and without stopping.</li>
+      <li><span class="ac-check"></span><strong>AC-SCAN-06:</strong> During explore phase, the app gives walking guidance toward open space or signage at 1 fps — never staying silent on a non-stale frame, even when Claude returns no direction — and transitions to navigate phase as soon as the destination becomes visible.</li>
       <li><span class="ac-check"></span><strong>AC-SCAN-07:</strong> If explore phase exceeds 90 seconds without a destination match, the app speaks the failure message and performs a full Stop.</li>
-      <li><span class="ac-check"></span><strong>AC-SCAN-08:</strong> Tapping Stop during scan or explore phase halts the loop cleanly with no further speech; the next Start always begins again in scan phase.</li>
+      <li><span class="ac-check"></span><strong>AC-SCAN-08:</strong> Tapping Stop during scan or explore phase halts the loop cleanly with no further speech; the next Start always begins again at scan stop 1 ("ahead").</li>
+      <li><span class="ac-check"></span><strong>AC-SCAN-09:</strong> After all 4 scan stops complete without finding the destination, if one stop scored clearly more open/navigable than the others, the app speaks a concrete turn instruction toward that direction (e.g. "Turn right, I saw an open hallway that way") before entering explore phase, rather than a direction-less generic message.</li>
+      <li><span class="ac-check"></span><strong>AC-SCAN-10:</strong> If all 4 scan stops score below the minimum openness bar (or are blocked by a high-urgency obstacle), the app falls back to the same generic explore hand-off message used on a scan timeout, rather than guessing a direction.</li>
+      <li><span class="ac-check"></span><strong>AC-SCAN-11:</strong> On a device/browser with no usable rotation-rate data (denied iOS permission, or no <code>DeviceMotionEvent</code> support), each scan stop's turn still completes via the fixed fallback dwell timer instead of hanging indefinitely.</li>
+      <li><span class="ac-check"></span><strong>AC-SCAN-12:</strong> Navigate- and explore-phase guidance never says "behind" or instructs the user to turn around; at a dead end it picks left/right toward a visible opening or states there's no clear path instead.</li>
     </ul>
 
     <h3>Obstacle Detection</h3>

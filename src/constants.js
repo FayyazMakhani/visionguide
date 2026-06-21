@@ -25,3 +25,10 @@ export const SCAN_MIN_CONFIDENCE      = 0.5;    // lower bar than GOAL_CONFIDENC
 
 export const EXPLORE_INTERVAL_MS      = 1000;   // 1fps during explore phase (user is walking)
 export const EXPLORE_TIMEOUT_MS       = 90_000; // ms before explore gives up entirely (90s)
+
+// --- Guided 4-direction scan (09-visionguide-guided-scan-spec.md) ---
+export const SCAN_LEG_TURN_TARGET_DEG = 90;     // target turn per leg (ahead/right/behind/left)
+export const SCAN_LEG_TURN_TOLERANCE_DEG = 10;  // accept the turn as "done" within +/-10 deg of target
+export const SCAN_LEG_NO_GYRO_TIMEOUT_MS = 2500; // fallback dwell time per leg when no gyro data is available
+export const SCAN_LEG_SETTLE_MS       = 600;    // brief pause after "stop" before capturing, to avoid motion blur
+export const SCAN_MIN_PATH_OPENNESS   = 0.4;    // minimum path_openness to commit to a direction instead of falling back to explore

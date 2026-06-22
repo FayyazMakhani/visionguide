@@ -2,15 +2,19 @@
 
 import { useState, useRef, useEffect, useCallback, Component } from 'react';
 import { initCamera, stopCamera } from './modules/camera.js';
-import { startLoop, stopLoop } from './modules/loop.js';
+import { startLoop, stopLoop, rejectGoal } from './modules/loop.js';
 import { extractDestination } from './modules/destination.js';
-import { isRecognitionAvailable, startRecognition } from './modules/recognition.js';
+import { isRecognitionAvailable, startRecognition, startCommandListener } from './modules/recognition.js';
 import { speak, cancel, resetSpeech } from './modules/speech.js';
 import GoalInput from './components/GoalInput.jsx';
 import StartStopButton from './components/StartStopButton.jsx';
 import StatusDisplay from './components/StatusDisplay.jsx';
 import CameraPreview from './components/CameraPreview.jsx';
 import Onboarding from './components/Onboarding.jsx';
+
+// Voice command, said any time mid-navigation, to reject the current direction/room
+// and resume searching elsewhere — see handleRejectGoal in loop.js.
+const REJECT_GOAL_PHRASES = ['not here', 'go back', 'wrong room', 'wrong place', 'keep looking', 'try again', "this isn't it"];
 
 // Standard React error boundary (setup spec §13.4). On error, speaks and shows a reload button.
 class ErrorBoundary extends Component {
@@ -48,6 +52,7 @@ export default function App() {
   // 'idle' | 'listening' | 'navigating' | 'arrived'
   const [lastSpoken, setLastSpoken] = useState('');
   const [context, setContext] = useState([]);
+  const [lastFrame, setLastFrame] = useState(null);
   // Shown on every mount — the dismiss tap is the user gesture mobile
   // browsers require before they'll allow speechSynthesis/recognition to run.
   const [showOnboarding, setShowOnboarding] = useState(true);
@@ -55,8 +60,10 @@ export default function App() {
   // --- Refs ---
   const videoRef = useRef(null);
   const streamRef = useRef(null);
+  const cameraInitInFlightRef = useRef(false);
   const startTimeoutRef = useRef(null);
   const recognitionStopRef = useRef(null);
+  const commandListenerStopRef = useRef(null);
 
   // Keep loopStateRef in sync with state so the interval reads fresh values
   const loopStateRef = useRef({ goal, context });
@@ -69,12 +76,13 @@ export default function App() {
     setLastSpoken(text);
   }, []);
 
-  const handleContextUpdate = useCallback((direction) => {
+  const handleContextUpdate = useCallback((direction, frame) => {
     setContext(prev => [...prev.slice(-1), direction]); // Keep last 2
+    setLastFrame(frame);
   }, []);
 
-  const handleArrival = useCallback(() => {
-    setStatus('arrived');
+  const handleFrameCaptured = useCallback((frame) => {
+    setLastFrame(frame);
   }, []);
 
   const handleError = useCallback((errorMsg) => {
@@ -82,24 +90,67 @@ export default function App() {
     // Loop continues — errors are handled inside loop.js with "Still scanning"
   }, []);
 
+  // --- Shared teardown: release camera/wakelock + recognition, used by
+  // handleStop and by the loop's own end-of-session callbacks (arrival/give-up) ---
+  const teardownMedia = useCallback(async () => {
+    if (startTimeoutRef.current !== null) {
+      clearTimeout(startTimeoutRef.current);
+      startTimeoutRef.current = null;
+    }
+    recognitionStopRef.current?.();
+    commandListenerStopRef.current?.();
+    commandListenerStopRef.current = null;
+    resetSpeech();
+    if (streamRef.current) {
+      const stream = streamRef.current;
+      streamRef.current = null;
+      await stopCamera(stream);
+    }
+  }, []);
+
+  const handleArrival = useCallback(() => {
+    teardownMedia().then(() => setStatus('arrived'));
+  }, [teardownMedia]);
+
+  // Loop gave up (explore phase timed out without finding the goal) —
+  // the session has ended just as much as an explicit Stop, so release
+  // camera/mic the same way.
+  const handleGiveUp = useCallback(() => {
+    teardownMedia().then(() => setStatus('idle'));
+  }, [teardownMedia]);
+
   // --- Begin camera + navigation loop for a resolved destination ---
   const beginNavigation = useCallback(async (cleanedGoal) => {
     setGoal(cleanedGoal);
     loopStateRef.current = { ...loopStateRef.current, goal: cleanedGoal };
 
-    // Initialize camera if not already running
+    // Initialize camera if not already running. Guard against a concurrent
+    // call (e.g. double-tap) racing past this check before either assigns
+    // streamRef — without the lock, the loser's stream would be silently
+    // overwritten and orphaned with no way to ever stop it.
     if (!streamRef.current) {
+      if (cameraInitInFlightRef.current) return;
+      cameraInitInFlightRef.current = true;
+      let stream;
       try {
-        streamRef.current = await initCamera(videoRef.current);
+        stream = await initCamera(videoRef.current);
       } catch {
+        cameraInitInFlightRef.current = false;
         setLastSpoken('Camera access denied. Please allow camera and try again.');
         return;
+      }
+      cameraInitInFlightRef.current = false;
+      if (streamRef.current) {
+        stopCamera(stream); // orphaned by a concurrent call — release it
+      } else {
+        streamRef.current = stream;
       }
     }
 
     const startNavigating = () => {
       setStatus('navigating');
       setContext([]);
+      setLastFrame(null);
       // Most common demo failure is holding the phone at the wrong angle — say so before the loop starts
       speak('Hold your phone at chest height, pointing forward.');
       startTimeoutRef.current = setTimeout(() => {
@@ -107,9 +158,12 @@ export default function App() {
         startLoop(videoRef.current, streamRef, loopStateRef, {
           onSpeak: handleSpeak,
           onContextUpdate: handleContextUpdate,
+          onFrameCaptured: handleFrameCaptured,
           onArrival: handleArrival,
+          onGiveUp: handleGiveUp,
           onError: handleError,
         });
+        commandListenerStopRef.current = startCommandListener(REJECT_GOAL_PHRASES, rejectGoal);
       }, 2500); // Wait for holding instruction to finish
     };
 
@@ -128,7 +182,7 @@ export default function App() {
       window.speechSynthesis.speak(safetyUtterance);
     }
 
-  }, [handleSpeak, handleContextUpdate, handleArrival, handleError]);
+  }, [handleSpeak, handleContextUpdate, handleFrameCaptured, handleArrival, handleGiveUp, handleError]);
 
   // --- Start navigation (manual Start button) ---
   const handleStart = useCallback(async () => {
@@ -235,19 +289,12 @@ export default function App() {
 
   // --- Stop navigation ---
   const handleStop = useCallback(async () => {
-    if (startTimeoutRef.current !== null) {
-      clearTimeout(startTimeoutRef.current);
-      startTimeoutRef.current = null;
-    }
     stopLoop();
-    resetSpeech();
-    if (streamRef.current) {
-      await stopCamera(streamRef.current);
-      streamRef.current = null;
-    }
+    await teardownMedia();
     setStatus('idle');
     setLastSpoken('');
-  }, []);
+    setLastFrame(null);
+  }, [teardownMedia]);
 
   // --- Cleanup on unmount ---
   useEffect(() => {
@@ -259,8 +306,9 @@ export default function App() {
       stopLoop();
       cancel();
       if (streamRef.current) {
-        stopCamera(streamRef.current);
+        const stream = streamRef.current;
         streamRef.current = null;
+        stopCamera(stream); // not awaited — cleanup effects are synchronous
       }
     };
   }, []);
@@ -292,6 +340,7 @@ export default function App() {
           <StatusDisplay
             status={status}
             lastSpoken={lastSpoken}
+            frame={lastFrame}
           />
         </div>
       </div>

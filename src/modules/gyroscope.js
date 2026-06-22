@@ -6,7 +6,7 @@
 // (09-visionguide-guided-scan-spec.md), used to detect when a ~90 deg leg
 // turn is complete.
 
-import { SCAN_YAW_THRESHOLD_DEG_S, SCAN_YAW_DEBOUNCE_MS } from '../constants.js';
+import { SCAN_YAW_THRESHOLD_DEG_S, SCAN_YAW_DEBOUNCE_MS, SPATIAL_HEADING_BUCKET_DEG } from '../constants.js';
 
 let currentYawRate = 0;
 let lastWarnedAt = 0;
@@ -14,6 +14,11 @@ let listening = false;
 let gotGyroData = false;
 let lastEventTime = null;
 let accumulatedTurnDeg = 0;
+// Signed cumulative rotation since session start (resetSessionHeading), unlike
+// accumulatedTurnDeg above which resets every tick for staleness checks. Drifts
+// over a long session since it's gyro-integration, not a real compass — only
+// good for short-term "have I turned back toward where I just was" recall.
+let sessionHeadingDeg = 0;
 
 /**
  * Start listening to DeviceMotionEvent. Call inside the Start tap handler
@@ -34,7 +39,13 @@ export function initGyroscope() {
   }
 
   window.addEventListener('devicemotion', (event) => {
-    const alpha = event.rotationRate?.alpha ?? 0;
+    const rawAlpha = event.rotationRate?.alpha;
+    // Many devices/browsers fire devicemotion with acceleration data only,
+    // leaving rotationRate null — treat those as "no gyro data" rather than
+    // letting them falsely satisfy hasGyroData() and disable the timer fallback.
+    if (rawAlpha == null) return;
+
+    const alpha = rawAlpha;
     currentYawRate = Math.abs(alpha);
     gotGyroData = true;
 
@@ -45,6 +56,7 @@ export function initGyroscope() {
       // inflate the accumulator with a single huge jump.
       if (dtSeconds > 0 && dtSeconds < 1) {
         accumulatedTurnDeg += alpha * dtSeconds;
+        sessionHeadingDeg += alpha * dtSeconds;
       }
     }
     lastEventTime = now;
@@ -57,6 +69,24 @@ export function initGyroscope() {
  */
 export function resetTurnAccumulator() {
   accumulatedTurnDeg = 0;
+}
+
+/**
+ * Zero the session-relative heading. Call once per navigation session (loop.js's
+ * startLoop), not per-tick/per-leg — this is meant to persist across the whole session.
+ */
+export function resetSessionHeading() {
+  sessionHeadingDeg = 0;
+}
+
+/**
+ * @returns {number} current session-relative heading bucketed into
+ * SPATIAL_HEADING_BUCKET_DEG-wide compass slices (0..7 for 45deg buckets), so two
+ * headings a few degrees apart from gyro noise still match as "the same direction".
+ */
+export function getSessionHeadingBucket() {
+  const normalized = ((sessionHeadingDeg % 360) + 360) % 360;
+  return Math.round(normalized / SPATIAL_HEADING_BUCKET_DEG) % (360 / SPATIAL_HEADING_BUCKET_DEG);
 }
 
 /**

@@ -3,7 +3,6 @@ export const API_TIMEOUT_MS    = 3000;   // Speak "Still scanning" after 3s of n
 export const STALE_FRAME_MS    = 4500;   // Drop API response if frame is older than 4.5s (p95 latency + 500ms buffer)
 export const GOAL_CONFIDENCE_THRESHOLD = 0.8; // Lower to 0.7 if demo destination is missed
 export const GOAL_CONFIRM_FRAMES = 2;    // Consecutive frames required to confirm arrival
-export const GOAL_FAST_CONFIRM_CONFIDENCE = 0.95; // Skip the 2nd confirm frame if the 1st is this confident
 export const SCAN_MODEL     = 'claude-sonnet-4-6';        // scan/explore: signage-reading accuracy matters most
 export const NAVIGATE_MODEL = 'claude-haiku-4-5-20251001'; // navigate: high-frequency, lower-stakes polling
 // OBSTACLE_CONFIRM_FRAMES intentionally removed — high urgency fires on first frame.
@@ -12,7 +11,13 @@ export const DEDUP_WINDOW_MS   = 10_000; // Don't repeat same direction within 1
 export const SILENCE_HOLDOFF_MS = 10_000; // Max one "Still scanning" per 10s
 export const STALE_WARNING_STREAK    = 3;      // 3 consecutive stale drops before telling the user to slow down
 export const STALE_WARNING_HOLDOFF_MS = 15_000; // Max one "too fast" warning per 15s — rarer than "Still scanning"
+// Max one "Catching up" cue per this many ms, for a response that arrived but was discarded
+// (stale/turned-away) — distinct from SILENCE_HOLDOFF_MS (no response yet). Must be >= DEDUP_WINDOW_MS
+// (speech.js, 10s) or speak()'s own dedup would silently eat a second cue before this throttle even matters.
+export const DROP_NOTICE_HOLDOFF_MS = 10_000;
 export const DEV_MODE = false; // Set to true locally for debugging
+export const NAV_TURN_CANCEL_DEG = 20; // Drop explore/navigate guidance if the user has rotated this many degrees since the frame was captured — it no longer reflects where they're pointing
+export const DEAD_END_STREAK = 2; // Consecutive path_blocked frames (explore/navigate) before auto-rerouting instead of repeating
 
 // --- Scan & explore phases (05-visionguide-scan-phase-spec.md) ---
 export const SCAN_INTERVAL_MS         = 500;    // 2fps during scan phase
@@ -30,5 +35,10 @@ export const EXPLORE_TIMEOUT_MS       = 90_000; // ms before explore gives up en
 export const SCAN_LEG_TURN_TARGET_DEG = 90;     // target turn per leg (ahead/right/behind/left)
 export const SCAN_LEG_TURN_TOLERANCE_DEG = 10;  // accept the turn as "done" within +/-10 deg of target
 export const SCAN_LEG_NO_GYRO_TIMEOUT_MS = 2500; // fallback dwell time per leg when no gyro data is available
+export const SCAN_LEG_MAX_TURN_MS = 6000; // hard ceiling per leg regardless of gyro state — a real 90deg body turn always finishes well within this
 export const SCAN_LEG_SETTLE_MS       = 600;    // brief pause after "stop" before capturing, to avoid motion blur
 export const SCAN_MIN_PATH_OPENNESS   = 0.4;    // minimum path_openness to commit to a direction instead of falling back to explore
+
+// --- Spatial memory (dead-end/blocked-heading recall) ---
+export const SPATIAL_HEADING_BUCKET_DEG = 45;    // compass-bucket size for session-relative heading
+export const SPATIAL_MEMORY_MS          = 120_000; // how long a blocked-heading memory stays usable before it's too stale (drift) to trust

@@ -13,6 +13,19 @@ export default function GoalInput({ goal, onGoalChange, disabled, isListening, o
     inputRef.current?.focus();
   }, []);
 
+  // Abort any in-flight recognition if this component unmounts mid-listen.
+  useEffect(() => {
+    return () => stopRecognitionRef.current?.();
+  }, []);
+
+  // Abort any in-flight recognition as soon as this control is disabled
+  // (navigation has started) — without this, recognition started here is
+  // entirely disconnected from App.jsx's session lifecycle, so it could
+  // otherwise still be capturing audio for the entire navigation session.
+  useEffect(() => {
+    if (disabled) stopRecognitionRef.current?.();
+  }, [disabled]);
+
   const handleMicClick = () => {
     if (isListening) {
       // Cancel active recognition

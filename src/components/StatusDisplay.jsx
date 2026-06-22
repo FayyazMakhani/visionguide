@@ -7,7 +7,7 @@ const STATUS_LABELS = {
   arrived: 'Arrived',
 };
 
-export default function StatusDisplay({ status, lastSpoken }) {
+export default function StatusDisplay({ status, lastSpoken, frame }) {
   return (
     // aria-live="assertive" ensures TalkBack announces all changes without user interaction
     <div
@@ -27,6 +27,17 @@ export default function StatusDisplay({ status, lastSpoken }) {
           {STATUS_LABELS[status] ?? status}
         </span>
       </div>
+
+      {/* Visual-only aid for sighted observers (companion/demo/debugging) — not
+          announced to the primary blind/low-vision user, hence outside the
+          aria-live region above. */}
+      {frame ? (
+        <img
+          src={`data:image/jpeg;base64,${frame}`}
+          alt="Camera frame analyzed for this instruction"
+          style={styles.frame}
+        />
+      ) : null}
 
       {lastSpoken ? (
         <p style={styles.lastSpoken}>
@@ -69,5 +80,12 @@ const styles = {
     fontSize: '18px',
     lineHeight: '1.5',
     margin: 0,
+  },
+  frame: {
+    display: 'block',
+    width: '100%',
+    maxWidth: '100%',
+    borderRadius: '8px',
+    marginBottom: '8px',
   },
 };

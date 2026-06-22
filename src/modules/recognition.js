@@ -55,5 +55,60 @@ export function startRecognition(onResult, onError, onSpeechStart) {
     onError(err.message || 'start-failed');
   }
 
-  return () => recognition.abort();
+  // Idempotent and crash-safe: callers may now invoke this more than once
+  // (e.g. App.jsx's session teardown runs on every Stop/Arrival/give-up, not
+  // just unmount) or after the recognition has already ended naturally.
+  // Chrome no-ops abort() on an ended recognition; WebKit (the engine behind
+  // Chrome on iOS) throws InvalidStateError instead.
+  let stopped = false;
+  return () => {
+    if (stopped) return;
+    stopped = true;
+    try { recognition.abort(); } catch { /* already ended */ }
+  };
+}
+
+/**
+ * Listen continuously for one of a fixed set of trigger phrases (e.g. "not
+ * here") for as long as the caller keeps it running — unlike startRecognition,
+ * which resolves once with a single transcript. Browsers commonly stop a
+ * "continuous" recognizer after a pause anyway, so this restarts it until
+ * stop() is called.
+ *
+ * @param {string[]} phrases  - lowercase phrases to match via substring
+ * @param {function} onMatch  - called (with no args) when a phrase matches
+ * @returns {function} stop()
+ */
+export function startCommandListener(phrases, onMatch) {
+  if (!SpeechRecognition) return () => {};
+
+  let stopped = false;
+  let recognition = null;
+
+  function startOne() {
+    if (stopped) return;
+    recognition = new SpeechRecognition();
+    recognition.lang = 'en-US';
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+    recognition.continuous = true;
+
+    recognition.onresult = (event) => {
+      const last = event.results[event.results.length - 1][0].transcript.trim().toLowerCase();
+      if (phrases.some((p) => last.includes(p))) onMatch();
+    };
+    recognition.onerror = () => { /* transient (no-speech, network) — onend restarts */ };
+    recognition.onend = () => {
+      if (!stopped) startOne();
+    };
+
+    try { recognition.start(); } catch { /* already running */ }
+  }
+
+  startOne();
+
+  return () => {
+    stopped = true;
+    try { recognition?.abort(); } catch { /* already ended */ }
+  };
 }

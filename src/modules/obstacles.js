@@ -8,6 +8,13 @@ import { speak } from './speech.js';
 let lastHighAlert = { type: '', direction: '', firedAt: 0 };
 const HIGH_ALERT_COOLDOWN_MS = 4000;
 
+// Same idea for medium urgency — without this, a stationary obstacle (e.g. a
+// clothing rack the user is ducking under) gets re-spoken every single tick
+// for as long as it's in frame, well past when the user has already passed it.
+// Longer cooldown than high since medium isn't safety-critical.
+let lastMediumAlert = { type: '', direction: '', firedAt: 0 };
+const MEDIUM_ALERT_COOLDOWN_MS = 6000;
+
 /**
  * Route obstacles to speech output.
  *
@@ -43,8 +50,16 @@ export function routeObstacles(obstacles) {
   // Medium urgency — queue, don't interrupt
   const medium = obstacles.find(o => o.urgency === 'medium');
   if (medium) {
-    const alert = formatObstacleAlert(medium);
-    speak(alert, false); // interrupt=false, queues after current speech
+    const now = Date.now();
+    const isSameAlert =
+      medium.type === lastMediumAlert.type &&
+      medium.direction === lastMediumAlert.direction &&
+      now - lastMediumAlert.firedAt < MEDIUM_ALERT_COOLDOWN_MS;
+
+    if (!isSameAlert) {
+      speak(formatObstacleAlert(medium), false); // interrupt=false, queues after current speech
+      lastMediumAlert = { type: medium.type, direction: medium.direction, firedAt: now };
+    }
   }
 
   // Low urgency: discard
@@ -78,4 +93,5 @@ function capitalize(str) {
  */
 export function resetObstacles() {
   lastHighAlert = { type: '', direction: '', firedAt: 0 };
+  lastMediumAlert = { type: '', direction: '', firedAt: 0 };
 }

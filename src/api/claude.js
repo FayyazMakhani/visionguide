@@ -1,5 +1,6 @@
 import { getLandmarkContext } from '../modules/landmarks.js';
 import { getGoalMemoryHint } from '../modules/goalMemory.js';
+import { getSpatialMemoryHint } from '../modules/spatialMemory.js';
 
 const API_KEY = import.meta.env.VITE_ANTHROPIC_API_KEY;
 const ENDPOINT = 'https://api.anthropic.com/v1/messages';
@@ -88,12 +89,14 @@ export function buildUserMessage(goal, context, base64Frame) {
 
   const landmarkText = getLandmarkContext();
   const goalMemoryHint = getGoalMemoryHint();
+  const spatialMemoryHint = getSpatialMemoryHint();
 
   const textParts = [
     `Goal: ${goal}`,
     contextText,
     landmarkText,
     goalMemoryHint,
+    spatialMemoryHint,
     'Analyze this frame.',
   ].filter(Boolean).join('\n');
 

@@ -13,6 +13,7 @@ import {
   SCAN_LEG_TURN_TARGET_DEG,
   SCAN_LEG_TURN_TOLERANCE_DEG,
   SCAN_LEG_NO_GYRO_TIMEOUT_MS,
+  SCAN_LEG_MAX_TURN_MS,
   SCAN_LEG_SETTLE_MS,
   SCAN_MIN_PATH_OPENNESS,
 } from '../constants.js';
@@ -58,15 +59,20 @@ export function isReadyToCapture() {
  * Call every scan-phase tick while isAwaitingTurn(). Transitions to
  * 'settling' once the leg's turn looks done — either the gyroscope reports
  * roughly SCAN_LEG_TURN_TARGET_DEG of rotation, or (no gyro data at all)
- * a fallback dwell time has elapsed.
+ * a fallback dwell time has elapsed. A hard ceiling (SCAN_LEG_MAX_TURN_MS)
+ * also applies regardless of gyro state, so a leg can never stall
+ * indefinitely if hasGyroData() is true but the angle never accumulates as
+ * expected (e.g. an axis/orientation mismatch for how the phone is held).
  * @returns {boolean} true if the turn just completed this call (so the
  *   caller can speak "Stop.")
  */
 export function checkTurnProgress() {
   const turned = getAccumulatedTurnDegrees();
-  const noGyroFallback = !hasGyroData() && (Date.now() - legStartTime) >= SCAN_LEG_NO_GYRO_TIMEOUT_MS;
+  const elapsed = Date.now() - legStartTime;
+  const noGyroFallback = !hasGyroData() && elapsed >= SCAN_LEG_NO_GYRO_TIMEOUT_MS;
+  const hardCeiling = elapsed >= SCAN_LEG_MAX_TURN_MS;
 
-  if (turned >= SCAN_LEG_TURN_TARGET_DEG - SCAN_LEG_TURN_TOLERANCE_DEG || noGyroFallback) {
+  if (turned >= SCAN_LEG_TURN_TARGET_DEG - SCAN_LEG_TURN_TOLERANCE_DEG || noGyroFallback || hardCeiling) {
     stage = 'settling';
     settleUntil = Date.now() + SCAN_LEG_SETTLE_MS;
     return true;

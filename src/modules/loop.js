@@ -8,7 +8,16 @@ import { routeObstacles, resetObstacles } from './obstacles.js';
 import { trackGoal, resetGoalTracker } from './goalTracker.js';
 import { extractLandmarks, resetLandmarks } from './landmarks.js';
 import { recordGoalSighting, resetGoalMemory } from './goalMemory.js';
-import { initGyroscope, isRotatingTooFast, shouldWarnRotationSpeed } from './gyroscope.js';
+import { recordBlocked, resetSpatialMemory } from './spatialMemory.js';
+import {
+  initGyroscope,
+  isRotatingTooFast,
+  shouldWarnRotationSpeed,
+  resetTurnAccumulator,
+  resetSessionHeading,
+  getAccumulatedTurnDegrees,
+  hasGyroData,
+} from './gyroscope.js';
 import * as guidedScan from './guidedScan.js';
 import {
   LOOP_INTERVAL_MS,
@@ -17,7 +26,9 @@ import {
   SILENCE_HOLDOFF_MS,
   STALE_WARNING_STREAK,
   STALE_WARNING_HOLDOFF_MS,
+  DROP_NOTICE_HOLDOFF_MS,
   DEV_MODE,
+  NAV_TURN_CANCEL_DEG,
   SCAN_INTERVAL_MS,
   SCAN_TIMEOUT_MS,
   SCAN_MIN_CONFIDENCE,
@@ -25,6 +36,7 @@ import {
   EXPLORE_TIMEOUT_MS,
   SCAN_MODEL,
   NAVIGATE_MODEL,
+  DEAD_END_STREAK,
 } from '../constants.js';
 
 let intervalId = null;
@@ -33,11 +45,14 @@ let abortController = null;
 let lastSilenceFiredAt = 0;
 let consecutiveStaleDrops = 0;
 let lastStaleWarningAt = 0;
+let lastDropNoticeAt = 0;
+let consecutivePathBlocked = 0;
 
 // 'scan' | 'explore' | 'navigate' — see 05-visionguide-scan-phase-spec.md
 let phase = 'scan';
 let scanTimerId = null;
 let exploreTimerId = null;
+let rejectGoalHandler = null;
 
 /**
  * Start the navigation loop. Always begins in scan phase: a guided
@@ -56,8 +71,14 @@ let exploreTimerId = null;
  *                                           fresh values without needing to restart the loop.
  * @param {object} callbacks
  * @param {function} callbacks.onSpeak          - Called with spoken text string (updates StatusDisplay)
- * @param {function} callbacks.onContextUpdate  - Called with navigation_direction string (updates context array)
+ * @param {function} callbacks.onContextUpdate  - Called with (navigation_direction, frame) on a spoken direction
+ * @param {function} callbacks.onFrameCaptured  - Called with the captured frame after each scan-phase leg
+ *                                           (win or lose), and additionally on every captured frame during
+ *                                           explore/navigate phases (regardless of whether that frame's
+ *                                           analysis is later accepted, stale, or turned-away) so the
+ *                                           on-screen preview never freezes while guidance is withheld.
  * @param {function} callbacks.onArrival        - Called when goal is confirmed reached
+ * @param {function} callbacks.onGiveUp         - Called when explore phase times out without finding the goal
  * @param {function} callbacks.onError          - Called with error string on API failure
  */
 export function startLoop(videoEl, streamRef, stateRef, callbacks) {
@@ -67,8 +88,11 @@ export function startLoop(videoEl, streamRef, stateRef, callbacks) {
   resetGoalTracker();
   resetLandmarks();
   resetGoalMemory();
+  resetSpatialMemory();
+  consecutivePathBlocked = 0;
 
   initGyroscope();
+  resetSessionHeading();
   phase = 'scan';
   guidedScan.resetGuidedScan();
 
@@ -115,6 +139,18 @@ export function startLoop(videoEl, streamRef, stateRef, callbacks) {
     }
 
     const capturedAt = Date.now();
+    // Track rotation since capture so a late response can be dropped if the
+    // user has since turned to face somewhere else — scan phase manages its
+    // own turn accumulator (guidedScan.js's beginNextLegTurn) and is excluded.
+    if (phase !== 'scan') resetTurnAccumulator();
+
+    // Keep the on-screen preview live in explore/navigate even when this frame's
+    // analysis ends up discarded as stale/turned-away below — otherwise the
+    // preview freezes on the last *accepted* frame while the camera (and user)
+    // keeps moving. Scan phase keeps its own per-leg call (tied to the analyzed
+    // frame), so it's excluded here to avoid a redundant/conflicting update.
+    if (phase !== 'scan') callbacks.onFrameCaptured(frame);
+
     pending = true;
     abortController = new AbortController();
 
@@ -147,7 +183,11 @@ export function startLoop(videoEl, streamRef, stateRef, callbacks) {
         // Drop navigation/goal data from a stale frame — the frame is old enough
         // that a direction referencing what was visible in it may no longer apply.
         const isStale = Date.now() - capturedAt > STALE_FRAME_MS;
-        const foundGoal = !isStale && result.navigation_direction && result.goal_confidence >= SCAN_MIN_CONFIDENCE;
+        // Explore phase only — the user is walking/turning freely between capture and
+        // response, unlike the held-still guided scan, so rotation since capture can
+        // invalidate a direction even when it's not old enough to count as stale.
+        const turnedAway = phase === 'explore' && hasGyroData() && getAccumulatedTurnDegrees() >= NAV_TURN_CANCEL_DEG;
+        const foundGoal = !isStale && !turnedAway && result.navigation_direction && result.goal_confidence >= SCAN_MIN_CONFIDENCE;
 
         if (result.obstacles?.length > 0) {
           routeObstacles(result.obstacles);
@@ -168,12 +208,13 @@ export function startLoop(videoEl, streamRef, stateRef, callbacks) {
           intervalId = setInterval(tick, LOOP_INTERVAL_MS);
 
           speak(result.navigation_direction, false, () => callbacks.onSpeak(result.navigation_direction));
-          callbacks.onContextUpdate(result.navigation_direction);
+          callbacks.onContextUpdate(result.navigation_direction, frame);
           return;
         }
 
         if (phase === 'scan') {
           guidedScan.recordLegResult(isStale ? { obstacles: result.obstacles } : result);
+          callbacks.onFrameCaptured(frame);
 
           if (guidedScan.hasMoreLegs()) {
             guidedScan.beginNextLegTurn();
@@ -190,17 +231,28 @@ export function startLoop(videoEl, streamRef, stateRef, callbacks) {
         // Always say something actionable, even when the model returns no
         // direction (e.g. a fully blocked view) — never leave the user with
         // silence once explore phase has started.
-        if (!isStale) {
+        if (!isStale && !turnedAway) {
+          if (result.path_blocked) {
+            handlePathBlocked();
+            return;
+          }
+          consecutivePathBlocked = 0;
           const direction = result.navigation_direction || "I don't see a clear path. Try turning left or right.";
           speak(direction, false, () => callbacks.onSpeak(direction));
-          callbacks.onContextUpdate(direction);
+          callbacks.onContextUpdate(direction, frame);
+        } else {
+          maybeSpeakDropNotice();
         }
         return;
       }
 
-      // --- Navigate phase — unchanged from prior loop behavior ---
+      // --- Navigate phase ---
 
       const isStale = Date.now() - capturedAt > STALE_FRAME_MS;
+      // The user walks continuously during navigate phase, so a rotation since
+      // capture (e.g. turning to face a different hallway) can invalidate guidance
+      // well before STALE_FRAME_MS's time-based cutoff would catch it.
+      const turnedAway = hasGyroData() && getAccumulatedTurnDegrees() >= NAV_TURN_CANCEL_DEG;
 
       // Route obstacles first, regardless of staleness — a hazard warning is still
       // actionable even on a late frame; only position-dependent guidance below
@@ -209,10 +261,11 @@ export function startLoop(videoEl, streamRef, stateRef, callbacks) {
         routeObstacles(result.obstacles);
       }
 
-      // Drop stale navigation/goal data — user has moved too far for it to be actionable.
+      // Drop stale or turned-away navigation/goal data — user has moved too far,
+      // or turned to face elsewhere, for it to be actionable.
       // A streak of these means the user is consistently outrunning the scan rate.
-      if (isStale) {
-        if (DEV_MODE) console.debug('Stale frame — navigation/goal data dropped', Date.now() - capturedAt, 'ms old');
+      if (isStale || turnedAway) {
+        if (DEV_MODE) console.debug(isStale ? 'Stale frame' : 'Turned away since capture', '— navigation/goal data dropped', Date.now() - capturedAt, 'ms old');
 
         consecutiveStaleDrops++;
         if (consecutiveStaleDrops >= STALE_WARNING_STREAK) {
@@ -223,14 +276,21 @@ export function startLoop(videoEl, streamRef, stateRef, callbacks) {
             lastStaleWarningAt = now;
           }
         }
+        maybeSpeakDropNotice();
         return;
       }
       consecutiveStaleDrops = 0;
 
+      if (result.path_blocked) {
+        handlePathBlocked();
+        return;
+      }
+      consecutivePathBlocked = 0;
+
       // Speak navigation direction
       if (result.navigation_direction) {
         speak(result.navigation_direction, false, () => callbacks.onSpeak(result.navigation_direction));
-        callbacks.onContextUpdate(result.navigation_direction);
+        callbacks.onContextUpdate(result.navigation_direction, frame);
         extractLandmarks(result.navigation_direction);
       }
 
@@ -243,8 +303,11 @@ export function startLoop(videoEl, streamRef, stateRef, callbacks) {
       // Check goal arrival
       const arrived = trackGoal(result.goal_found, result.goal_confidence);
       if (arrived) {
-        speak(`You have arrived at ${goal}`, true, () => callbacks.onSpeak(`Arrived at ${goal}`));
-        callbacks.onArrival();
+        // Stop the loop immediately (no more capture/API calls), but defer onArrival
+        // (which releases the camera/mic and cancels speech) until the announcement
+        // has actually been heard — calling it right away raced resetSpeech()'s
+        // cancel() against this utterance, cutting "You have arrived" off silently.
+        speak(`You have arrived at ${goal}`, true, () => callbacks.onSpeak(`Arrived at ${goal}`), () => callbacks.onArrival());
         stopLoop();
       }
 
@@ -273,6 +336,18 @@ export function startLoop(videoEl, streamRef, stateRef, callbacks) {
     }
   }
 
+  // Explore/navigate only: a response arrived but was discarded as stale/turned-away.
+  // Distinct from the silenceTimer's "Still scanning" (which fires when no response has
+  // arrived yet) — this tells the user a result existed but no longer matches where
+  // they're pointing, so the on-screen instruction isn't just sitting frozen unexplained.
+  // Throttled separately from lastSilenceFiredAt since the two report different causes.
+  function maybeSpeakDropNotice() {
+    const now = Date.now();
+    if (now - lastDropNoticeAt < DROP_NOTICE_HOLDOFF_MS) return;
+    speak('Catching up.', false, () => callbacks.onSpeak('Catching up.'));
+    lastDropNoticeAt = now;
+  }
+
   // Shared hand-off from scan to explore phase, used both when the guided
   // scan completes (with or without a winning direction) and as the overall
   // safety-net timeout (scanTimerId) in case a leg never resolves.
@@ -282,12 +357,31 @@ export function startLoop(videoEl, streamRef, stateRef, callbacks) {
       scanTimerId = null;
     }
     phase = 'explore';
+    consecutivePathBlocked = 0;
     exploreTimerId = setTimeout(onExploreTimeout, EXPLORE_TIMEOUT_MS);
 
     clearInterval(intervalId);
     intervalId = setInterval(tick, EXPLORE_INTERVAL_MS);
 
     speak(message, false, () => callbacks.onSpeak(message));
+  }
+
+  // Called from the explore/navigate branches above when result.path_blocked
+  // is true. Rather than repeating "no path"/whatever instruction came back
+  // every tick while stuck facing a wall or dead end, speak it once and then
+  // — if it persists for DEAD_END_STREAK frames — auto-reroute exactly like
+  // the manual "not here" voice command does.
+  function handlePathBlocked() {
+    consecutivePathBlocked++;
+    recordBlocked();
+    if (consecutivePathBlocked >= DEAD_END_STREAK) {
+      handleRejectGoal("Dead end. Turn around and I'll guide you a different way.");
+      return;
+    }
+    if (consecutivePathBlocked === 1) {
+      const msg = 'No path this way.';
+      speak(msg, false, () => callbacks.onSpeak(msg));
+    }
   }
 
   function onScanTimeout() {
@@ -313,9 +407,25 @@ export function startLoop(videoEl, streamRef, stateRef, callbacks) {
     exploreTimerId = null;
     const goal = stateRef.current.goal;
     const msg = `I wasn't able to find ${goal}. Please ask someone nearby for help.`;
-    speak(msg, false, () => callbacks.onSpeak(msg));
+    // Same deferred-teardown reasoning as the arrival branch above — onGiveUp
+    // releases the mic/camera and resets speech, which would otherwise cut this
+    // message off before the user hears it.
+    speak(msg, false, () => callbacks.onSpeak(msg), () => callbacks.onGiveUp());
     stopLoop();
   }
+
+  // Dead-end/reject recovery, triggered either by the user saying "not here"
+  // (rejectGoalHandler below, default message) or automatically by
+  // handlePathBlocked() above (custom message). Nothing to reject yet during
+  // the initial scan. Turning around is the one direction guaranteed to show
+  // a view the model hasn't already judged against this goal.
+  function handleRejectGoal(message = "Okay, this isn't it. Turn around and I'll guide you a different way.") {
+    if (phase === 'scan') return;
+    resetGoalTracker();
+    resetGoalMemory();
+    transitionToExplore(message);
+  }
+  rejectGoalHandler = handleRejectGoal;
 
   // Overall safety net for the whole guided scan (4 legs), in case a leg's
   // turn never resolves (e.g. no gyro data and a hung fallback) — falls
@@ -354,9 +464,11 @@ export function stopLoop() {
   }
   pending = false;
   lastSilenceFiredAt = 0;
+  lastDropNoticeAt = 0;
   consecutiveStaleDrops = 0;
   lastStaleWarningAt = 0;
   phase = 'scan';
+  rejectGoalHandler = null;
 }
 
 /**
@@ -365,4 +477,12 @@ export function stopLoop() {
  */
 export function isLoopRunning() {
   return intervalId !== null;
+}
+
+/**
+ * Reject the current direction/room (e.g. user said "not here") and resume
+ * searching elsewhere. No-op if the loop isn't running.
+ */
+export function rejectGoal() {
+  rejectGoalHandler?.();
 }

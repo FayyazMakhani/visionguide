@@ -12,6 +12,7 @@ export function buildSystemPrompt(mode = 'navigation') {
     }
   ],
   "navigation_direction": string,
+  "path_blocked": boolean,
   "goal_found": boolean,
   "goal_confidence": number
 }`;
@@ -35,6 +36,13 @@ Rules:
 - navigation_direction: max 8-10 words, action-oriented, references a specific visible landmark when one exists.
   BAD: "Move forward." GOOD: "Move forward toward the elevator doors."
   BAD: "Turn left." GOOD: "Turn left at the blue door."
+  BAD: "There is a wall along the right of the frame." (describes geometry, gives no action)
+  GOOD: "Path splits ahead — go left toward the open hallway."
+- If the frame shows a fork or junction — two or more clearly distinct paths branching apart
+  (e.g. a hallway splitting into a "V") — commit to ONE side (left or right), picking whichever
+  looks more open or leads toward any known goal hint, and say so as an action. Never describe
+  the fork itself (e.g. wall/geometry positions) as if that were the guidance — a layout
+  description is not actionable for someone who can't see it.
 - About 3 seconds pass between this frame and the user hearing your words — they will have
   walked further by then. Only describe something as "on your left/right" if the user is still
   approaching it (it's ahead of them in this frame, not yet reached). For something only just
@@ -51,8 +59,13 @@ Rules:
   left; if in the right half, it is on the user's right. The image is not mirrored. State the
   side that matches where it actually appears — do not swap them.
 - If the path directly ahead is blocked, choose left or right based on whichever side of THIS
-  frame shows a visible opening. If neither side shows a clear opening either, say so plainly
-  (e.g. "No clear path here, look around for another way") instead of guessing a direction.
+  frame shows a visible opening.
+- path_blocked: true when the frame shows a wall, the back of an enclosed space (closet, alcove,
+  small room) with no doorway/opening other than where the user entered, or shelving/racks/furniture
+  filling the frame with no passable gap — i.e. nothing navigable ahead, left, or right. When
+  path_blocked is true, navigation_direction MUST be null. Never say "continue", "move forward",
+  or invent any path over a wall or dead end — that is exactly the failure this field exists to
+  prevent.
 - Scan the full width of the image for obstacles, not just center frame.
   Report any object within approximately 2 metres on the path ahead.
 - urgency=high: stationary object directly blocking the path within 1 metre only.
@@ -68,6 +81,13 @@ Rules:
   close the user is. A legible sign seen from a distance is goal_found=false with low
   goal_confidence; the same sign filling a large portion of the frame right ahead is
   goal_found=true with high goal_confidence.
+- For physical-object goals with no signage (e.g. "my shoes", "my keys"), require the same
+  closeness before goal_found=true: the object must fill a large portion of the frame, within
+  roughly an arm's length, at floor/table level the user could reach or bend down to pick up —
+  not merely recognizable somewhere in the shot.
+  BAD: shoes visible across the room → goal_found=true (wrong, too far to act on).
+  GOOD: shoes visible across the room → goal_found=false, low confidence. Only once the shoes
+  are large in frame, right at the user's feet → goal_found=true, high confidence.
 - If goal is not visible, or visible but still far away: goal_found=false, goal_confidence=0.
 - If a "Destination last seen" hint is provided and the goal is not visible in this frame,
   route the user back toward that last-known direction rather than treating the goal as lost.
@@ -163,17 +183,26 @@ Analyze this camera frame and do the following:
 
 The goal is to get the user moving through the building until ${goal} or relevant signage
 comes into view. Do not tell the user you cannot find ${goal}. Always provide a
-navigation_direction. Never say "behind" or "turn around" — you only see forward, so you have
-no evidence of what's behind the user. If the path directly ahead is blocked, direct them left
-or right toward whichever side of THIS frame shows open space; only if neither side shows an
-opening, say so explicitly (e.g. "No clear path, look around") instead of returning null.
+navigation_direction when any navigable path exists. Never say "behind" or "turn around" — you
+only see forward, so you have no evidence of what's behind the user. If the path directly ahead
+is blocked, direct them left or right toward whichever side of THIS frame shows open space.
+If the frame shows a fork or junction — the path splits into two or more clearly distinct
+branches — pick one side (whichever looks more open or closer to ${goal}) and say so as an
+action; do not describe the fork's layout or wall positions instead of choosing a direction.
 Before stating left or right, check which half of the image the relevant thing is actually in —
 the image is not mirrored — and do not swap sides.
+
+path_blocked: true when the frame shows a wall, the back of an enclosed space (closet, alcove,
+small room) with no doorway/opening other than where the user entered, or shelving/racks/furniture
+filling the frame with no passable gap on any side — i.e. nothing navigable ahead, left, or
+right. When path_blocked is true, set navigation_direction to null. Never say "continue", "move
+forward", or invent any path over a wall or dead end.
 
 Return JSON only, no other text:
 {
   "obstacles": [],
   "navigation_direction": "string or null",
+  "path_blocked": false,
   "goal_found": false,
   "goal_confidence": 0.0
 }`;

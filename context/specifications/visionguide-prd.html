@@ -921,6 +921,8 @@
         The app tracks yaw rate and cumulative turn angle via <code>DeviceMotionEvent</code> to know when each scan stop's ~90° turn is complete, and still warns "A little slower." (no more than once per 2.5s) if rotation exceeds 30°/s — fast rotation both blurs the eventual frame and degrades the turn-angle estimate.
         <ul>
           <li>A stop's turn is considered complete once accumulated rotation is within 10° of the 90° target, or — if no rotation-rate data is available at all (denied permission, unsupported browser) — once a fixed 2.5s fallback dwell has elapsed for that stop, so scan phase can never hang waiting on a sensor that isn't there</li>
+          <li>"No rotation-rate data available" is determined per <code>devicemotion</code> event, not per session: a device that fires motion events containing only acceleration data (rotation rate absent on that event) is treated as having no usable rotation data for the fallback check above, even though motion events are arriving. Bug fix: an earlier implementation treated the mere arrival of any <code>devicemotion</code> event as proof of usable rotation data, which on such devices permanently disabled the 2.5s fallback while the turn angle itself never accumulated — stalling a stop indefinitely regardless of how much the user actually turned.</li>
+          <li>A hard 6-second ceiling applies to every stop's turn-completion check regardless of rotation-rate availability — a defensive backstop in case rotation-rate data is present but doesn't track the turn as expected for how the phone is actually held (chest-height, pointing forward), so a stop can never stall longer than this even if the angle-based and no-gyro-fallback checks both fail to fire</li>
           <li>On iOS 13+, an explicit <code>DeviceMotionEvent.requestPermission()</code> prompt is requested when starting the loop (inside the same Start-tap gesture), since rotation events otherwise never fire there at all</li>
           <li>Gyroscope use is purely relative (rotation rate integrated over time) — never an absolute/magnetometer heading, and never spoken to the user as a compass direction</li>
           <li>A brief settle pause (~600ms) after each detected stop, before capturing, avoids analyzing a motion-blurred frame</li>
@@ -1102,6 +1104,27 @@
           <li>On recognition error or no-result, speak "Didn't catch that. Please try again or type your destination."</li>
           <li>If <code>SpeechRecognition</code> is unavailable (non-Chrome browser), hide mic button and use text-only input silently</li>
           <li><strong>Safety prompt (mandatory):</strong> When navigation begins (via Start tap, or via the auto-listen flow's FR-NAV-06 auto-start), before the navigation loop begins, speak: "VisionGuide is a navigation aid only. Keep using your cane or other mobility aid." Plays once per calendar day, on the first navigation start of that day; cannot be skipped on that first play. Subsequent starts the same day proceed directly to the scan instruction (see FR-SCAN-01) without replaying it.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="req">
+      <div class="req-header">
+        <span class="req-id">FR-UI-04</span>
+        <span class="req-title">Analyzed-frame preview for sighted observers</span>
+        <span class="badge badge-mvp">MVP</span>
+      </div>
+      <div class="req-body">
+        The last-spoken text display additionally shows a still image of the exact camera frame
+        that was analyzed to produce the instruction currently on screen — letting a sighted
+        companion, demo audience, or developer see what the AI actually saw. This is a visual-only
+        aid for sighted observers; the app's primary blind/low-vision user gets no benefit from it
+        and it is not announced via screen reader.
+        <ul>
+          <li>The image shown is the frame behind the current spoken <code>navigation_direction</code> — ticks that don't produce a spoken direction (e.g. "Still scanning", "Turn right and stop.") leave the previously shown image in place rather than clearing or flickering it.</li>
+          <li>During guided scan phase (FR-SCAN-01), the image additionally updates after <strong>every</strong> stop's capture, win or lose — not just on an early goal-found exit — so a sighted observer can confirm a fresh frame was actually analyzed at each of the 4 stops, even though most stops have no spoken direction of their own.</li>
+          <li>Not part of the <code>aria-live</code> region used for TalkBack announcements (FR-UI-02) — an image conveys nothing to that audience.</li>
+          <li>Cleared on Stop and at the start of a new navigation session, so no frame from a prior session/destination is ever shown alongside a new one.</li>
         </ul>
       </div>
     </div>
@@ -1344,10 +1367,10 @@ Rules:
     <p>Owns the <code>setInterval</code> and the <code>scan → explore → navigate</code> phase state machine (FR-SCAN-01–06). Phase determines the capture interval (500ms scan, 1000ms explore/navigate), which prompt is sent, whether gyroscope gating applies (scan only), and the confidence threshold for transitioning toward the destination. During scan phase, frame capture is additionally gated by GuidedScan's per-stop turn/settle staging — no frame is captured until a stop's turn is complete and the brief settle dwell has elapsed. Checks <code>pending</code> flag before calling. Calls <code>CameraStream.getFrame()</code>, assembles payload, POSTs directly to <code>https://api.anthropic.com/v1/messages</code> with the key from <code>import.meta.env.VITE_ANTHROPIC_API_KEY</code>, sets <code>pending = false</code> on resolution. Drops response if frame was captured more than 1500ms ago. Phase and GuidedScan's stop sequence both reset on every Stop.</p>
 
     <h3>Gyroscope</h3>
-    <p>Singleton wrapping <code>DeviceMotionEvent</code>, used only during scan phase. Initialized inside the Start tap handler, not on page load — also requests iOS's <code>DeviceMotionEvent.requestPermission()</code> there, in the same gesture context, since iOS 13+ otherwise never fires rotation events at all. Exposes <code>isRotatingTooFast()</code> (true above 30°/s yaw rate; always <code>false</code> if <code>DeviceMotionEvent</code> is unavailable, so scan phase is never blocked on unsupported devices) and <code>shouldWarnRotationSpeed()</code> (debounced to at most once per 2.5 seconds). Also integrates signed rotation rate over time into a resettable accumulator (<code>resetTurnAccumulator()</code> / <code>getAccumulatedTurnDegrees()</code>) used by GuidedScan to detect when a stop's ~90° turn is complete, plus <code>hasGyroData()</code> so callers can fall back to a timer when no rotation data is available at all.</p>
+    <p>Singleton wrapping <code>DeviceMotionEvent</code>, used only during scan phase. Initialized inside the Start tap handler, not on page load — also requests iOS's <code>DeviceMotionEvent.requestPermission()</code> there, in the same gesture context, since iOS 13+ otherwise never fires rotation events at all. Exposes <code>isRotatingTooFast()</code> (true above 30°/s yaw rate; always <code>false</code> if <code>DeviceMotionEvent</code> is unavailable, so scan phase is never blocked on unsupported devices) and <code>shouldWarnRotationSpeed()</code> (debounced to at most once per 2.5 seconds). Also integrates signed rotation rate over time into a resettable accumulator (<code>resetTurnAccumulator()</code> / <code>getAccumulatedTurnDegrees()</code>) used by GuidedScan to detect when a stop's ~90° turn is complete, plus <code>hasGyroData()</code> so callers can fall back to a timer when no rotation data is available at all — only set once a <code>devicemotion</code> event actually carries rotation-rate data, not merely once any motion event has fired (FR-SCAN-02).</p>
 
     <h3>GuidedScan</h3>
-    <p>Owns the 4-stop scan sequence (FR-SCAN-01/02/06): <code>ahead → right → behind → left</code>, each reached by a ~90° turn detected via Gyroscope (or a fixed dwell-time fallback). Stages each stop through <code>awaiting_turn → settling → ready</code> before NavigationLoop captures and analyzes a frame. Records each stop's <code>path_openness</code>/obstacles/<code>navigation_direction</code>, and after all 4 are recorded (with no earlier goal-found short-circuit), <code>decide()</code> picks the highest-scoring open, unblocked stop and returns a relative turn instruction toward it, or reports no clear direction if none clears the minimum openness bar.</p>
+    <p>Owns the 4-stop scan sequence (FR-SCAN-01/02/06): <code>ahead → right → behind → left</code>, each reached by a ~90° turn detected via Gyroscope (or a fixed dwell-time fallback, or — regardless of Gyroscope's reported state — a hard 6-second per-stop ceiling, FR-SCAN-02). Stages each stop through <code>awaiting_turn → settling → ready</code> before NavigationLoop captures and analyzes a frame, and reports the captured frame back to the UI preview (FR-UI-04) at the end of every stop, not only on a goal-found short-circuit. Records each stop's <code>path_openness</code>/obstacles/<code>navigation_direction</code>, and after all 4 are recorded (with no earlier goal-found short-circuit), <code>decide()</code> picks the highest-scoring open, unblocked stop and returns a relative turn instruction toward it, or reports no clear direction if none clears the minimum openness bar.</p>
 
     <h3>ObstacleRouter</h3>
     <p>Receives parsed JSON. Maintains a <code>consecutiveHighCount</code> counter. On <code>urgency: high</code>, increments counter; fires interrupt only when counter reaches 2. Resets counter on any non-high frame. Medium urgency enqueues. Low urgency discards.</p>
@@ -1560,7 +1583,8 @@ Rules:
       <li><span class="ac-check"></span><strong>AC-SCAN-08:</strong> Tapping Stop during scan or explore phase halts the loop cleanly with no further speech; the next Start always begins again at scan stop 1 ("ahead").</li>
       <li><span class="ac-check"></span><strong>AC-SCAN-09:</strong> After all 4 scan stops complete without finding the destination, if one stop scored clearly more open/navigable than the others, the app speaks a concrete turn instruction toward that direction (e.g. "Turn right, I saw an open hallway that way") before entering explore phase, rather than a direction-less generic message.</li>
       <li><span class="ac-check"></span><strong>AC-SCAN-10:</strong> If all 4 scan stops score below the minimum openness bar (or are blocked by a high-urgency obstacle), the app falls back to the same generic explore hand-off message used on a scan timeout, rather than guessing a direction.</li>
-      <li><span class="ac-check"></span><strong>AC-SCAN-11:</strong> On a device/browser with no usable rotation-rate data (denied iOS permission, or no <code>DeviceMotionEvent</code> support), each scan stop's turn still completes via the fixed fallback dwell timer instead of hanging indefinitely.</li>
+      <li><span class="ac-check"></span><strong>AC-SCAN-11:</strong> On a device/browser with no usable rotation-rate data (denied iOS permission, no <code>DeviceMotionEvent</code> support, or motion events that only ever carry acceleration data), each scan stop's turn still completes via the fixed fallback dwell timer instead of hanging indefinitely.</li>
+      <li><span class="ac-check"></span><strong>AC-SCAN-13:</strong> Even if rotation-rate data is present but never accumulates toward the 90° target despite genuine turning, a scan stop still completes within 6 seconds via the hard ceiling, rather than stalling toward the 20-second whole-scan timeout (AC-SCAN-05) on every stop.</li>
       <li><span class="ac-check"></span><strong>AC-SCAN-12:</strong> Navigate- and explore-phase guidance never says "behind" or instructs the user to turn around; at a dead end it picks left/right toward a visible opening or states there's no clear path instead.</li>
     </ul>
 
@@ -1586,6 +1610,8 @@ Rules:
       <li><span class="ac-check"></span><strong>AC-UI-03:</strong> Status changes ("Scanning", "Arrived") are announced by TalkBack without user interaction.</li>
       <li><span class="ac-check"></span><strong>AC-UI-04:</strong> All text meets WCAG AA contrast ratio (4.5:1 minimum).</li>
       <li><span class="ac-check"></span><strong>AC-UI-05:</strong> App is fully operable via TalkBack without sighted assistance (verified by manual test).</li>
+      <li><span class="ac-check"></span><strong>AC-UI-06:</strong> The displayed analyzed-frame image (FR-UI-04) updates in step with each new spoken navigation instruction, is cleared on Stop, and shows no stale frame at the start of a new session.</li>
+      <li><span class="ac-check"></span><strong>AC-UI-07:</strong> During guided scan phase, the displayed analyzed-frame image (FR-UI-04) updates after every one of the 4 stops' captures, not only on an early goal-found exit — confirming a fresh frame was analyzed at each stop even when that stop has no spoken direction.</li>
     </ul>
 
     <h3>Reliability</h3>

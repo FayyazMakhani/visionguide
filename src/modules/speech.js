@@ -75,6 +75,17 @@ function processQueue() {
   const utterance = speechQueue.shift();
   utterance.onend = () => {
     isProcessingQueue = false;
+    utterance._onEnd?.();
+    setTimeout(processQueue, QUEUE_PAUSE_MS);
+  };
+  // The Web Speech API fires onend OR onerror, not necessarily both — without this,
+  // an errored utterance (e.g. a documented Android cancel() race, see cancel() below)
+  // leaves isProcessingQueue stuck true forever, silently dropping every later
+  // non-interrupt speak() call (onstart never fires either, so the UI freezes too).
+  utterance.onerror = (event) => {
+    console.warn('Speech error:', event.error);
+    isProcessingQueue = false;
+    utterance._onEnd?.();
     setTimeout(processQueue, QUEUE_PAUSE_MS);
   };
   window.speechSynthesis.speak(utterance);
@@ -86,8 +97,10 @@ function processQueue() {
  * @param {boolean} interrupt    - If true, cancel current speech first
  * @param {function} [onStart]   - Called when this utterance actually starts playing
  *                                 (not when it's enqueued) — use this to sync UI text to audio.
+ * @param {function} [onEnd]     - Called once this utterance finishes (or errors out) —
+ *                                 use this to defer teardown until the message was actually heard.
  */
-export function speak(text, interrupt = false, onStart) {
+export function speak(text, interrupt = false, onStart, onEnd) {
   if (!text || !text.trim()) return;
 
   // Deduplication: don't repeat the same direction within 10 seconds
@@ -100,6 +113,7 @@ export function speak(text, interrupt = false, onStart) {
 
   const utterance = createUtterance(text);
   if (onStart) utterance.onstart = onStart;
+  if (onEnd) utterance._onEnd = onEnd;
 
   if (interrupt) {
     // If something is actively playing, give it the same gap a natural queue

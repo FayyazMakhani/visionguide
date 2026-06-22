@@ -172,9 +172,22 @@ Update this file whenever the current phase, active feature, or implementation s
   - Verified `npm run build` and `npm run lint` both pass clean after all changes.
   - Not yet validated on-device: re-approach an object goal (e.g. shoes) from across a room and confirm arrival no longer triggers until genuinely close, and confirm the arrival announcement is reliably heard. Per investigation framing, fix 2 closes a real structural gap but isn't proven to be *the* cause of the original silent-arrival report — don't treat silent speech as now categorically impossible.
 
+- **`11-visionguide-clarity-redesign-spec.md` implemented** (branch `feature/ui-redesign`) — presentation-only UI overhaul to the "Clarity" direction; no loop/API/speech/camera logic changed.
+  - `index.html` — loads Public Sans + Atkinson Hyperlegible webfonts; body reset to the light theme (`#FFFFFF`); `theme-color` → `#FFFFFF`.
+  - `src/theme.js` — new shared `colors`/`fonts` tokens (inline-styles convention, not a CSS framework).
+  - `src/App.jsx` — render is now a screen switch keyed off existing state: Onboarding → Set-destination (idle/listening) → Navigating → Arrived. Added `handleNewDestination` (Arrived → cleared Set-destination). `CameraPreview` stays mounted across screens for capture. No state/loop/voice-flow logic changed.
+  - `src/components/Onboarding.jsx`, `GoalInput.jsx`, `StartStopButton.jsx` — restyled to the light Clarity theme; GoalInput's voice control is now a full-width "Speak instead" button (same recognition behavior); StartStopButton is the emerald "Start navigation" pill.
+  - `src/components/StatusDisplay.jsx` — simplified to a small `aria-live` announcement strip (status/error text) for the Set-destination screen; the analyzed-frame `<img>` it gained in spec 10 is relocated to the Navigating background.
+  - `src/components/NavigatingView.jsx` (new) — full-bleed **spec-10 still frame** (`lastFrame`) background + scrim + emerald instruction banner (the `aria-live="assertive"` region carrying `lastSpoken`, plus "→ {goal}") + LIVE badge + docked red Stop. **Live video is not used** (decision a); `CameraPreview` stays hidden per spec 10.
+  - `src/components/ArrivedView.jsx` (new) — check-circle, "You've arrived", destination, generic arrival message, "New destination".
+  - **Decision (b):** the mockup's "12 m" distance is dropped — the app computes no distance; the banner shows only "→ {goal}".
+  - a11y preserved: aria-live instruction region kept (now in NavigatingView), ≥56px tap targets, aria-labels on controls, decorative SVGs `aria-hidden`, frame `<img>` has alt and stays out of aria-live (spec 10).
+  - Verified `npm run build` and `npm run lint` pass clean (AT-CR-06). AT-CR-01–05 (visual/on-device + screen-reader) not yet run.
+
 ## In Progress
 
-- None — all Week 1–4 + scan-phase + guided-scan + frame-preview code changes are implemented. Remaining work is on-device acceptance testing of `09-visionguide-guided-scan-spec.md` and `10-visionguide-frame-preview-spec.md`, plus the real-world Week 4 polish/demo-prep punch list below, none started yet.
+- `feature/ui-redesign` — spec 11 implemented and verified (build/lint). Pending: visual/on-device pass (AT-CR-01–05) and opening the PR.
+- All Week 1–4 + scan-phase + guided-scan + frame-preview code changes are implemented. Remaining work is on-device acceptance testing of `09-visionguide-guided-scan-spec.md` and `10-visionguide-frame-preview-spec.md`, plus the real-world Week 4 polish/demo-prep punch list below, none started yet.
 
 ## Next Up
 
@@ -204,7 +217,8 @@ Update this file whenever the current phase, active feature, or implementation s
 
 - High-urgency obstacles fire on the first frame (no 2-frame confirmation) — confirmed correct per PRD R-04/loop latency math; only goal arrival uses 2-frame confirmation.
 - `max_tokens` set to 500, not 300, per PRD R-01 — avoids truncated JSON on multi-obstacle frames.
-- No CSS files/design system introduced beyond inline styles needed to satisfy explicit component contract requirements (56px tap targets, 24px/18px font sizes) — spec is silent on visual design beyond accessibility numbers, so nothing speculative was added.
+- ~~No CSS files/design system introduced beyond inline styles~~ — **superseded by §11 (Clarity redesign).** The redesign introduces a deliberate visual design: a shared `src/theme.js` tokens module (colors/fonts — not a CSS framework, still consumed via the existing per-component inline-`styles`-object convention), two webfonts loaded in `index.html` (Public Sans display, Atkinson Hyperlegible body — the latter chosen for low-vision legibility), and a light theme. Tap-target (≥56px) and aria requirements from the original decision are still honored.
+- **§11 contrast follow-up (open):** the new light palette's *content* text was checked against PRD AC-UI-04/NFR-06 (≥4.5:1) and two failures were fixed (the "DESTINATION" label moved inkFaint→inkMuted; the navigating banner subtitle moved to full white on emerald). White-on-emerald buttons compute to 4.52:1 (pass, narrow margin). Still **pending a full WCAG re-audit on the new palette** (PRD Week-4 "WCAG AA contrast check" task line + AT-CR-05): known borderline item is the "READY" pill (emerald text on emeraldTint ≈3.96:1) — acceptable for now as a small non-content status badge, to be resolved in the contrast audit.
 - `stateRef` (goal/context) synced via `useEffect` rather than during render, to satisfy the `react-hooks/refs` lint rule while preserving the "loop always reads fresh state" behavior the spec calls for.
 - The WakeLock `visibilitychange` re-acquire listener (Week 2 spec §13) is attached once at module load in `camera.js`, exactly as the spec's snippet shows. Side effect: it will also attempt to silently re-acquire a WakeLock on any tab-visibility change even outside an active navigation session (guarded by `wakeLock === null`, fails silently if no permission context). Not a problem for MVP single-session use; flagged here in case it surprises someone reading the module in isolation.
 - Destination extraction (§06 spec) uses a Claude text-only call rather than a regex/keyword stripper — the user explicitly clarified destination phrasing isn't limited to fixed command templates ("take me to X") and may be any direct or indirect description of a place, which only a language-understanding approach can generalize across. This reuses the existing direct-from-browser Claude call pattern (`callClaude`) already in place for vision frames, rather than introducing a new API mechanism or a backend proxy.

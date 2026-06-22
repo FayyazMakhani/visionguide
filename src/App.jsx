@@ -11,6 +11,9 @@ import StartStopButton from './components/StartStopButton.jsx';
 import StatusDisplay from './components/StatusDisplay.jsx';
 import CameraPreview from './components/CameraPreview.jsx';
 import Onboarding from './components/Onboarding.jsx';
+import NavigatingView from './components/NavigatingView.jsx';
+import ArrivedView from './components/ArrivedView.jsx';
+import { colors, fonts } from './theme.js';
 
 // Voice command, said any time mid-navigation, to reject the current direction/room
 // and resume searching elsewhere — see handleRejectGoal in loop.js.
@@ -296,6 +299,14 @@ export default function App() {
     setLastFrame(null);
   }, [teardownMedia]);
 
+  // --- Arrived → start a fresh destination (back to the Set-destination screen) ---
+  const handleNewDestination = useCallback(() => {
+    setStatus('idle');
+    setGoal('');
+    setLastSpoken('');
+    setLastFrame(null);
+  }, []);
+
   // --- Cleanup on unmount ---
   useEffect(() => {
     return () => {
@@ -316,61 +327,114 @@ export default function App() {
   return (
     <ErrorBoundary>
       {showOnboarding && <Onboarding onDismiss={handleOnboardingDismiss} />}
-      <div style={styles.container}>
+
+      {/* Centered phone-width shell. overflow:hidden clips the hidden 640px capture
+          <video> so it can't cause horizontal overflow, and keeps every screen
+          phone-width on desktop. */}
+      <div style={styles.shell}>
+        {/* Hidden capture element — must stay mounted across screens so the loop can grab frames. */}
         <CameraPreview videoRef={videoRef} />
 
-        <div style={styles.content}>
-          <h1 style={styles.title}>VisionGuide</h1>
-
-          <GoalInput
+        {status === 'navigating' ? (
+          <NavigatingView
             goal={goal}
-            onGoalChange={setGoal}
-            disabled={status === 'navigating'}
-            isListening={status === 'listening'}
-            onStatusChange={setStatus}
-          />
-
-          <StartStopButton
-            status={status}
-            onStart={handleStart}
-            onStop={handleStop}
-            disabled={!goal.trim() || status === 'listening'}
-          />
-
-          <StatusDisplay
-            status={status}
             lastSpoken={lastSpoken}
             frame={lastFrame}
+            onStop={handleStop}
           />
-        </div>
+        ) : status === 'arrived' ? (
+          <ArrivedView goal={goal} onNewDestination={handleNewDestination} />
+        ) : (
+          <div style={styles.content}>
+            <div style={styles.header}>
+              <span style={styles.wordmark}>VisionGuide</span>
+              <span style={styles.readyPill}>
+                <span style={styles.readyDot} aria-hidden="true" />
+                Ready
+              </span>
+            </div>
+
+            <h1 style={styles.heading}>Where to?</h1>
+
+            <GoalInput
+              goal={goal}
+              onGoalChange={setGoal}
+              disabled={status === 'navigating'}
+              isListening={status === 'listening'}
+              onStatusChange={setStatus}
+            />
+
+            <StatusDisplay lastSpoken={lastSpoken} />
+
+            <div style={styles.bottom}>
+              <StartStopButton
+                status={status}
+                onStart={handleStart}
+                disabled={!goal.trim() || status === 'listening'}
+              />
+            </div>
+          </div>
+        )}
       </div>
     </ErrorBoundary>
   );
 }
 
 const styles = {
-  container: {
-    minHeight: '100vh',
-    background: '#0f0f0f',
+  shell: {
+    position: 'relative',
     display: 'flex',
     flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: '24px',
-    fontFamily: 'system-ui, sans-serif',
-  },
-  content: {
     width: '100%',
     maxWidth: '480px',
+    minHeight: '100vh',
+    margin: '0 auto',
+    overflow: 'hidden',
+    background: colors.surface,
+    fontFamily: fonts.body,
+  },
+  content: {
+    flex: 1,
     display: 'flex',
     flexDirection: 'column',
     gap: '20px',
+    padding: '24px 22px',
+    boxSizing: 'border-box',
   },
-  title: {
-    color: '#ffffff',
-    fontSize: '28px',
-    fontWeight: '700',
-    margin: 0,
-    letterSpacing: '-0.02em',
+  header: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  wordmark: {
+    font: `800 17px/1 ${fonts.display}`,
+    color: colors.ink,
+  },
+  readyPill: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
+    font: `700 11px/1 ${fonts.body}`,
+    letterSpacing: '.08em',
+    textTransform: 'uppercase',
+    color: colors.emerald,
+    background: colors.emeraldTint,
+    padding: '5px 9px',
+    borderRadius: '20px',
+  },
+  readyDot: {
+    width: '7px',
+    height: '7px',
+    borderRadius: '50%',
+    background: colors.emerald,
+  },
+  heading: {
+    font: `900 26px/1.12 ${fonts.display}`,
+    letterSpacing: '-.02em',
+    color: colors.ink,
+    margin: '4px 0 0',
+  },
+  bottom: {
+    marginTop: 'auto',
   },
 };

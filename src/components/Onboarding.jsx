@@ -1,5 +1,14 @@
 // src/components/Onboarding.jsx
 
+import { colors, fonts } from '../theme.js';
+
+const STEPS = [
+  'Type or speak where you want to go',
+  'Tap Start Navigation',
+  'Hold your phone in front of you at chest height',
+  'Follow the spoken directions',
+];
+
 export default function Onboarding({ onDismiss }) {
   return (
     <div
@@ -11,17 +20,27 @@ export default function Onboarding({ onDismiss }) {
       <div style={styles.card}>
         <h2 style={styles.title}>Welcome to VisionGuide</h2>
         <p style={styles.body}>
-          VisionGuide listens to your camera and speaks directions to help you navigate indoors.
+          VisionGuide uses your camera to see your surroundings and speaks directions to help you
+          navigate indoors.
         </p>
+
         <ol style={styles.steps}>
-          <li>Type or speak where you want to go</li>
-          <li>Tap Start Navigation</li>
-          <li>Hold your phone in front of you at chest height</li>
-          <li>Follow the spoken directions</li>
+          {STEPS.map((step, i) => (
+            <li key={i} style={styles.step}>
+              <span style={styles.num} aria-hidden="true">{i + 1}</span>
+              <span style={styles.stepText}>{step}</span>
+            </li>
+          ))}
         </ol>
+
         <div style={styles.warning}>
-          Keep using your white cane or mobility aid at all times.
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" style={styles.warnIcon} aria-hidden="true">
+            <path d="M12 3l9 16H3L12 3z" stroke={colors.warnIcon} strokeWidth="1.8" strokeLinejoin="round" />
+            <path d="M12 9v4.5M12 16.3v.2" stroke={colors.warnIcon} strokeWidth="1.8" strokeLinecap="round" />
+          </svg>
+          <span style={styles.warnText}>Keep using your white cane or mobility aid at all times.</span>
         </div>
+
         <button
           onClick={onDismiss}
           autoFocus
@@ -39,7 +58,7 @@ const styles = {
   overlay: {
     position: 'fixed',
     inset: 0,
-    background: 'rgba(0,0,0,0.85)',
+    background: 'rgba(14,26,23,0.55)',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -47,51 +66,78 @@ const styles = {
     padding: '24px',
   },
   card: {
-    background: '#1a1a1a',
-    borderRadius: '12px',
+    background: colors.surface,
+    borderRadius: '20px',
     padding: '28px 24px',
     maxWidth: '400px',
     width: '100%',
-    border: '1px solid #333',
+    boxShadow: '0 24px 60px -20px rgba(0,0,0,.45)',
   },
   title: {
-    color: '#ffffff',
-    fontSize: '22px',
-    fontWeight: '700',
-    marginBottom: '12px',
+    font: `900 25px/1.1 ${fonts.display}`,
+    letterSpacing: '-.02em',
+    color: colors.ink,
+    margin: '0 0 8px',
   },
   body: {
-    color: '#aaa',
-    fontSize: '15px',
-    lineHeight: '1.6',
-    marginBottom: '16px',
+    font: `400 14px/1.5 ${fonts.body}`,
+    color: colors.inkMuted,
+    margin: '0 0 18px',
   },
   steps: {
-    color: '#ffffff',
-    fontSize: '16px',
-    lineHeight: '2',
-    paddingLeft: '20px',
-    marginBottom: '20px',
+    listStyle: 'none',
+    margin: '0 0 20px',
+    padding: 0,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '11px',
+  },
+  step: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: '11px',
+  },
+  num: {
+    flex: 'none',
+    width: '24px',
+    height: '24px',
+    borderRadius: '7px',
+    background: colors.emeraldTint,
+    color: colors.emerald,
+    font: `800 13px/24px ${fonts.display}`,
+    textAlign: 'center',
+  },
+  stepText: {
+    font: `700 14px/1.3 ${fonts.body}`,
+    color: colors.ink,
   },
   warning: {
-    background: '#2a1500',
-    border: '1px solid #b84c00',
-    borderRadius: '8px',
-    padding: '12px 16px',
-    color: '#f97316',
-    fontSize: '14px',
-    marginBottom: '20px',
-    lineHeight: '1.5',
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: '10px',
+    background: colors.warnBg,
+    border: `1px solid ${colors.warnBorder}`,
+    borderRadius: '12px',
+    padding: '12px 13px',
+    marginBottom: '18px',
+  },
+  warnIcon: {
+    flex: 'none',
+    marginTop: '1px',
+  },
+  warnText: {
+    font: `700 13px/1.45 ${fonts.body}`,
+    color: colors.warnText,
   },
   button: {
     width: '100%',
-    minHeight: '56px',
-    background: '#1a4fd6',
-    color: '#ffffff',
+    minHeight: '60px',
     border: 'none',
-    borderRadius: '8px',
-    fontSize: '18px',
-    fontWeight: '700',
+    borderRadius: '30px',
+    background: colors.emerald,
+    color: colors.white,
+    font: `800 17px/1 ${fonts.display}`,
     cursor: 'pointer',
+    boxShadow: '0 10px 22px -8px rgba(6,133,122,.55)',
   },
 };

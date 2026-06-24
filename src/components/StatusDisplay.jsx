@@ -1,91 +1,28 @@
 // src/components/StatusDisplay.jsx
+// Small aria-live announcement strip for the Set-destination screen — surfaces
+// errors/prompts like "Camera access denied". The navigating instruction banner
+// and analyzed-frame preview now live in NavigatingView.
 
-const STATUS_LABELS = {
-  idle: 'Ready',
-  listening: 'Listening...',
-  navigating: 'Navigating',
-  arrived: 'Arrived',
-};
+import { colors, fonts } from '../theme.js';
 
-export default function StatusDisplay({ status, lastSpoken, frame }) {
+export default function StatusDisplay({ lastSpoken }) {
+  if (!lastSpoken) return null;
+
   return (
-    // aria-live="assertive" ensures TalkBack announces all changes without user interaction
-    <div
+    <p
       aria-live="assertive"
       aria-atomic="true"
-      style={styles.wrapper}
+      style={styles.text}
     >
-      <div style={styles.statusLine}>
-        <span style={{
-          ...styles.dot,
-          background: status === 'navigating' ? '#22c55e'
-            : status === 'arrived' ? '#1a4fd6'
-            : status === 'listening' ? '#b84c00'
-            : '#555',
-        }} />
-        <span style={styles.statusText}>
-          {STATUS_LABELS[status] ?? status}
-        </span>
-      </div>
-
-      {/* Visual-only aid for sighted observers (companion/demo/debugging) — not
-          announced to the primary blind/low-vision user, hence outside the
-          aria-live region above. */}
-      {frame ? (
-        <img
-          src={`data:image/jpeg;base64,${frame}`}
-          alt="Camera frame analyzed for this instruction"
-          style={styles.frame}
-        />
-      ) : null}
-
-      {lastSpoken ? (
-        <p style={styles.lastSpoken}>
-          {lastSpoken}
-        </p>
-      ) : null}
-    </div>
+      {lastSpoken}
+    </p>
   );
 }
 
 const styles = {
-  wrapper: {
-    padding: '16px',
-    background: '#1a1a1a',
-    borderRadius: '10px',
-    border: '1px solid #333',
-    minHeight: '80px',
-  },
-  statusLine: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '10px',
-    marginBottom: '8px',
-  },
-  dot: {
-    width: '10px',
-    height: '10px',
-    borderRadius: '50%',
-    flexShrink: 0,
-  },
-  statusText: {
-    color: '#aaa',
-    fontSize: '13px',
-    fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: '0.08em',
-  },
-  lastSpoken: {
-    color: '#ffffff',
-    fontSize: '18px',
-    lineHeight: '1.5',
+  text: {
+    font: `700 15px/1.5 ${fonts.body}`,
+    color: colors.inkMuted,
     margin: 0,
-  },
-  frame: {
-    display: 'block',
-    width: '100%',
-    maxWidth: '100%',
-    borderRadius: '8px',
-    marginBottom: '8px',
   },
 };

@@ -184,9 +184,18 @@ Update this file whenever the current phase, active feature, or implementation s
   - a11y preserved: aria-live instruction region kept (now in NavigatingView), ≥56px tap targets, aria-labels on controls, decorative SVGs `aria-hidden`, frame `<img>` has alt and stays out of aria-live (spec 10).
   - Verified `npm run build` and `npm run lint` pass clean (AT-CR-06). AT-CR-01–05 (visual/on-device + screen-reader) not yet run.
 
+- **Scan-summary context carry-over** (branch `feature/scan-summary-context`, off `develop` — not a numbered spec; fixes a gap found in review: the guided 4-direction scan analyzed all four legs but discarded everything except which way to turn, so explore/navigate phases started with no spatial context about the surroundings):
+  - Root cause: `finishGuidedScan()`/`onScanTimeout()` read only `decide()`'s winning direction; the per-leg `path_openness`/`navigation_direction` results in `guidedScan.js`'s `legResults[]` were never surfaced to Claude after the scan, and `transitionToExplore()` never calls `onContextUpdate`, so the explore phase's first frames were analyzed with `No prior context.`
+  - `src/modules/guidedScan.js` — new `getScanSummary()`: formats all recorded legs into one self-describing line (`Scan summary from the initial look-around (...): ahead — open hallway (openness 0.8); ...`). Self-describing on purpose — carries its own usage instruction inline, matching the established `getGoalMemoryHint`/`getSpatialMemoryHint` pattern, so no system-prompt rule was added (keeps the change off `system.js`/`develop` and entirely on the feature branch).
+  - `src/api/claude.js` — `buildUserMessage()` takes an optional `scanSummary` param, spliced into `textParts` alongside the existing landmark/goal/spatial hints (empty string is dropped by the existing `.filter(Boolean)`, so scan-phase calls — where it's still `''` — are unaffected).
+  - `src/modules/loop.js` — module-level `scanSummary` set from `guidedScan.getScanSummary()` in both `finishGuidedScan()` and `onScanTimeout()` (so a partial-leg timeout still carries what it gathered), passed to every `buildUserMessage()` call, reset to `''` in `stopLoop()`.
+  - Verified `npm run build` and `npm run lint` both pass clean.
+  - Not yet done: on-device validation that the carried summary measurably improves explore/navigate guidance, and tuning of the summary wording against real-building observations — fold into the next `prompt-tuning-log.md` session.
+
 ## In Progress
 
 - `feature/ui-redesign` — spec 11 implemented and verified (build/lint). Pending: visual/on-device pass (AT-CR-01–05) and opening the PR.
+- `feature/scan-summary-context` — scan-summary carry-over implemented and verified (build/lint). Pending: on-device validation and PR into `develop`.
 - All Week 1–4 + scan-phase + guided-scan + frame-preview code changes are implemented. Remaining work is on-device acceptance testing of `09-visionguide-guided-scan-spec.md` and `10-visionguide-frame-preview-spec.md`, plus the real-world Week 4 polish/demo-prep punch list below, none started yet.
 
 ## Next Up

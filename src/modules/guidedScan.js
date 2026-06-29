@@ -150,6 +150,26 @@ function normalizeTurnDelta(deltaDeg) {
   return delta;
 }
 
+/**
+ * One-line text summary of all 4 scan-leg results, for injection into
+ * explore/navigate prompts. Self-describing (carries its own usage
+ * instruction inline, like getGoalMemoryHint/getSpatialMemoryHint) so no
+ * system-prompt rule is needed. Returns '' if no legs were recorded.
+ * @returns {string}
+ */
+export function getScanSummary() {
+  const parts = [];
+  LEGS.forEach((label, idx) => {
+    const r = legResults[idx];
+    if (!r) return;
+    const hint = r.navigation_direction || 'no detail';
+    const openness = (r.path_openness ?? 0).toFixed(1);
+    parts.push(`${label} — ${hint} (openness ${openness})`);
+  });
+  if (parts.length === 0) return '';
+  return `Scan summary from the initial look-around (background context for what's nearby; trust THIS frame over it if they conflict): ${parts.join('; ')}.`;
+}
+
 function buildTurnInstruction(delta, legResult) {
   const hint = legResult.navigation_direction ? ` — ${legResult.navigation_direction}` : ', I saw an open path that way';
   if (delta === 0) return `Stay facing this way${hint}.`;

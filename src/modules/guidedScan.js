@@ -163,8 +163,11 @@ export function getScanSummary() {
     const r = legResults[idx];
     if (!r) return;
     const hint = r.navigation_direction || 'no detail';
-    const openness = (r.path_openness ?? 0).toFixed(1);
-    parts.push(`${label} — ${hint} (openness ${openness})`);
+    const opennessValue = Number(r.path_openness);
+    const opennessText = Number.isFinite(opennessValue)
+      ? `openness ${opennessValue.toFixed(1)}`
+      : 'openness unknown';
+    parts.push(`${label} — ${hint} (${opennessText})`);
   });
   if (parts.length === 0) return '';
   return `Scan summary from the initial look-around (background context for what's nearby; trust THIS frame over it if they conflict): ${parts.join('; ')}.`;

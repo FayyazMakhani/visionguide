@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VisionGuide — Spec 12: On-Device Computer Vision Layer</title>
+<style>
+  :root {
+    --ink: #0f0f0f;
+    --ink-secondary: #444;
+    --ink-muted: #777;
+    --surface: #f7f6f2;
+    --white: #ffffff;
+    --rule: #d8d5ce;
+    --accent: #1a4fd6;
+    --accent-light: #e8edfb;
+    --warn: #b84c00;
+    --warn-light: #fff2ea;
+    --success: #1a6640;
+    --success-light: #eaf4ee;
+    --tag-bg: #eceae4;
+    --radius: 6px;
+    --mono: "Courier New", Courier, monospace;
+    --sans: system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body { font-family: var(--sans); background: var(--surface); color: var(--ink); font-size: 15px; line-height: 1.7; }
+
+  .layout { display: grid; grid-template-columns: 240px 1fr; min-height: 100vh; }
+
+  .sidebar { position: sticky; top: 0; height: 100vh; overflow-y: auto; background: var(--white); border-right: 1px solid var(--rule); padding: 32px 0; }
+  .sidebar-logo { padding: 0 24px 24px; border-bottom: 1px solid var(--rule); margin-bottom: 16px; }
+  .sidebar-logo .product-name { font-size: 15px; font-weight: 600; color: var(--ink); letter-spacing: -0.01em; }
+  .sidebar-logo .doc-type { font-size: 11px; color: var(--ink-muted); text-transform: uppercase; letter-spacing: 0.08em; margin-top: 2px; }
+  .nav-section-label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; color: var(--ink-muted); padding: 12px 24px 4px; }
+  .nav-link { display: block; padding: 5px 24px; font-size: 13px; color: var(--ink-secondary); text-decoration: none; border-left: 2px solid transparent; transition: color 0.15s, border-color 0.15s, background 0.15s; }
+  .nav-link:hover { color: var(--accent); border-left-color: var(--accent); background: var(--accent-light); }
+  .nav-link.sub { padding-left: 36px; font-size: 12px; color: var(--ink-muted); }
+
+  .main { max-width: 860px; padding: 64px 56px; }
+
+  .cover { margin-bottom: 72px; padding-bottom: 48px; border-bottom: 2px solid var(--ink); }
+  .cover-eyebrow { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.12em; color: var(--accent); margin-bottom: 16px; }
+  .cover-title { font-size: 42px; font-weight: 700; letter-spacing: -0.03em; line-height: 1.1; color: var(--ink); margin-bottom: 12px; }
+  .cover-subtitle { font-size: 18px; color: var(--ink-secondary); font-weight: 400; margin-bottom: 32px; line-height: 1.4; }
+  .cover-meta { display: flex; gap: 32px; flex-wrap: wrap; }
+  .meta-item { font-size: 13px; }
+  .meta-label { color: var(--ink-muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; display: block; margin-bottom: 2px; }
+  .meta-value { color: var(--ink); font-weight: 500; }
+
+  .badge { display: inline-block; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 4px; text-transform: uppercase; letter-spacing: 0.06em; }
+  .badge-draft { background: var(--tag-bg); color: var(--ink-secondary); }
+  .badge-mvp { background: var(--accent-light); color: var(--accent); }
+
+  .section { margin-bottom: 64px; }
+  .section-header { display: flex; align-items: baseline; gap: 12px; margin-bottom: 24px; padding-bottom: 10px; border-bottom: 1px solid var(--rule); }
+  .section-number { font-size: 11px; font-weight: 600; color: var(--ink-muted); text-transform: uppercase; letter-spacing: 0.1em; min-width: 28px; }
+  .section-title { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; color: var(--ink); }
+
+  h3 { font-size: 16px; font-weight: 600; color: var(--ink); margin: 28px 0 10px; letter-spacing: -0.01em; }
+  h4 { font-size: 13px; font-weight: 600; color: var(--ink-secondary); text-transform: uppercase; letter-spacing: 0.07em; margin: 20px 0 8px; }
+
+  p { margin-bottom: 14px; color: var(--ink-secondary); }
+  p:last-child { margin-bottom: 0; }
+
+  ul, ol { margin: 8px 0 14px 20px; color: var(--ink-secondary); font-size: 14px; }
+  li { margin-bottom: 5px; line-height: 1.6; }
+
+  .req { background: var(--white); border: 1px solid var(--rule); border-radius: var(--radius); margin-bottom: 10px; overflow: hidden; }
+  .req-header { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--rule); background: var(--surface); }
+  .req-id { font-family: var(--mono); font-size: 11px; color: var(--ink-muted); min-width: 80px; }
+  .req-title { font-size: 14px; font-weight: 600; color: var(--ink); flex: 1; }
+  .req-body { padding: 12px 16px; font-size: 13px; color: var(--ink-secondary); line-height: 1.6; }
+  .req-body ul { margin: 8px 0 0 16px; }
+  .req-body li { margin-bottom: 4px; }
+
+  .ac-list { list-style: none; margin: 0; }
+  .ac-list li { display: flex; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--rule); font-size: 13px; color: var(--ink-secondary); align-items: flex-start; }
+  .ac-list li:last-child { border-bottom: none; }
+  .ac-check { width: 16px; height: 16px; border: 1.5px solid var(--rule); border-radius: 3px; flex-shrink: 0; margin-top: 2px; }
+
+  .code-block { background: #1a1a1a; color: #e8e6df; border-radius: var(--radius); padding: 20px 24px; font-family: var(--mono); font-size: 12.5px; line-height: 1.7; overflow-x: auto; margin: 12px 0 20px; }
+  .code-block .key { color: #7eb8f7; }
+  .code-block .str { color: #a8d8a8; }
+  .code-block .comment { color: #666; }
+  .code-block .num { color: #f7c97e; }
+  .code-block .kw { color: #e8a0f0; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; margin: 12px 0 20px; }
+  th { text-align: left; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.07em; color: var(--ink-muted); padding: 8px 12px; border-bottom: 2px solid var(--rule); }
+  td { padding: 10px 12px; border-bottom: 1px solid var(--rule); color: var(--ink-secondary); vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: var(--surface); }
+  td:first-child { font-family: var(--mono); font-size: 11px; color: var(--ink-muted); white-space: nowrap; }
+
+  .callout { border-radius: var(--radius); padding: 14px 18px; margin: 16px 0; font-size: 13px; line-height: 1.6; }
+  .callout-warn { background: var(--warn-light); border-left: 3px solid var(--warn); color: var(--warn); }
+  .callout-info { background: var(--accent-light); border-left: 3px solid var(--accent); color: var(--accent); }
+  .callout-success { background: var(--success-light); border-left: 3px solid var(--success); color: var(--success); }
+  .callout strong { font-weight: 600; }
+
+  .diagram-wrap { background: var(--white); border: 1px solid var(--rule); border-radius: var(--radius); padding: 24px; margin: 20px 0; overflow-x: auto; }
+  .diagram-caption { font-size: 12px; color: var(--ink-muted); text-align: center; margin-top: 12px; font-style: italic; }
+
+  @media print { .sidebar { display: none; } .layout { display: block; } .main { max-width: 100%; padding: 32px; } }
+  @media (max-width: 768px) { .layout { grid-template-columns: 1fr; } .sidebar { display: none; } .main { padding: 32px 24px; } .cover-title { font-size: 28px; } }
+</style>
+</head>
+<body>
+
+<div class="layout">
+
+<nav class="sidebar" aria-label="Document navigation">
+  <div class="sidebar-logo">
+    <div class="product-name">VisionGuide</div>
+    <div class="doc-type">Spec 12 — Computer Vision</div>
+  </div>
+
+  <div class="nav-section-label">Overview</div>
+  <a class="nav-link" href="#cover">Cover</a>
+  <a class="nav-link" href="#s1">1. Purpose &amp; Motivation</a>
+  <a class="nav-link" href="#s2">2. Scope</a>
+
+  <div class="nav-section-label">Architecture</div>
+  <a class="nav-link" href="#s3">3. Three-Loop System</a>
+  <a class="nav-link" href="#s4">4. Data Flow</a>
+  <a class="nav-link" href="#s5">5. Latency Contract</a>
+
+  <div class="nav-section-label">Modules</div>
+  <a class="nav-link" href="#s6">6. New Modules</a>
+  <a class="nav-link sub" href="#s6-detector">cvDetector</a>
+  <a class="nav-link sub" href="#s6-tracker">cvTracker</a>
+  <a class="nav-link sub" href="#s6-worldmodel">cvWorldModel</a>
+  <a class="nav-link sub" href="#s6-risk">estimateRisk</a>
+  <a class="nav-link sub" href="#s6-hazard">hazardEvaluator</a>
+  <a class="nav-link sub" href="#s6-context">cvContextBuilder</a>
+
+  <div class="nav-section-label">Integration</div>
+  <a class="nav-link" href="#s7">7. Modified Files</a>
+  <a class="nav-link" href="#s8">8. Constants</a>
+
+  <div class="nav-section-label">Delivery</div>
+  <a class="nav-link" href="#s9">9. Acceptance Tests</a>
+  <a class="nav-link" href="#s10">10. Definition of Done</a>
+</nav>
+
+<main class="main">
+
+<!-- Cover -->
+<div class="cover" id="cover">
+  <div class="cover-eyebrow">Specification #12</div>
+  <div class="cover-title">On-Device Computer Vision Layer</div>
+  <div class="cover-subtitle">Parallel MediaPipe detection at 15fps to augment Claude's 1fps vision loop with real-time safety awareness.</div>
+  <div class="cover-meta">
+    <div class="meta-item">
+      <span class="meta-label">Status</span>
+      <span class="meta-value"><span class="badge badge-draft">Draft</span></span>
+    </div>
+    <div class="meta-item">
+      <span class="meta-label">Date</span>
+      <span class="meta-value">2026-07-01</span>
+    </div>
+    <div class="meta-item">
+      <span class="meta-label">Platform</span>
+      <span class="meta-value">iOS Safari / Chrome, Android Chrome</span>
+    </div>
+    <div class="meta-item">
+      <span class="meta-label">Builds on</span>
+      <span class="meta-value">Specs 01–11</span>
+    </div>
+  </div>
+</div>
+
+<!-- 1. Purpose -->
+<div class="section" id="s1">
+  <div class="section-header">
+    <div class="section-number">01</div>
+    <div class="section-title">Purpose &amp; Motivation</div>
+  </div>
+
+  <p>Claude vision runs at ~1fps — the API round-trip (capture → encode → POST → inference → response) takes 2–4s at p50. A person walking toward the user can close 1m in under a second. The gap between Claude's 1s polling cadence and real-world obstacle dynamics is a safety latency problem that the existing obstacle module cannot close on its own.</p>
+
+  <p>This spec adds MediaPipe Object Detection running at ~15fps on-device as a parallel fast layer. Claude is not replaced: it continues to handle navigation reasoning, goal recognition, and spatial understanding. CV fills the gaps between Claude calls.</p>
+
+  <div class="callout callout-info">
+    <strong>Design principle:</strong> CV augments Claude, it does not replace it. Claude's role (navigation, goal recognition, spatial reasoning) is unchanged. The raw camera image continues to be sent on every Claude call.
+  </div>
+
+  <h3>What CV adds</h3>
+  <table>
+    <thead><tr><th>Layer</th><th>Rate</th><th>Responsibility</th></tr></thead>
+    <tbody>
+      <tr><td>On-device CV</td><td>~15fps</td><td>Immediate safety alerts when a high-risk object is detected between Claude calls</td></tr>
+      <tr><td>On-device CV</td><td>~15fps</td><td>Rolling world-state snapshot enriching each Claude prompt with structured scene context</td></tr>
+      <tr><td>Claude vision</td><td>~1fps</td><td>Navigation reasoning, goal recognition, spatial understanding, sign reading — unchanged</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- 2. Scope -->
+<div class="section" id="s2">
+  <div class="section-header">
+    <div class="section-number">02</div>
+    <div class="section-title">Scope</div>
+  </div>
+
+  <h3>New files</h3>
+  <table>
+    <thead><tr><th>File</th><th>Role</th></tr></thead>
+    <tbody>
+      <tr><td>src/modules/cvDetector.js</td><td>MediaPipe ObjectDetector wrapper — raw frame detections</td></tr>
+      <tr><td>src/modules/cvTracker.js</td><td>IoU centroid tracker — stable object IDs across frames</td></tr>
+      <tr><td>src/modules/cvWorldModel.js</td><td>Atomic JSON snapshot store (replace-not-mutate)</td></tr>
+      <tr><td>src/modules/cvContextBuilder.js</td><td>World state → compact Claude prompt string</td></tr>
+      <tr><td>src/modules/hazardEvaluator.js</td><td>Risk evaluation and audio routing (medium loop)</td></tr>
+      <tr><td>src/utils/estimateRisk.js</td><td>Pure risk function — seam for future depth model</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Modified files</h3>
+  <table>
+    <thead><tr><th>File</th><th>Change</th></tr></thead>
+    <tbody>
+      <tr><td>src/constants.js</td><td>Add 7 CV threshold and loop-timing constants</td></tr>
+      <tr><td>src/api/claude.js</td><td><code>buildUserMessage()</code> gains optional <code>cvContext</code> 5th argument</td></tr>
+      <tr><td>src/modules/loop.js</td><td>Start/stop CV with navigation loop; pass CV context to each Claude call</td></tr>
+      <tr><td>src/App.jsx</td><td>Pass video element ref into <code>startLoop()</code> (already done — no signature change needed)</td></tr>
+      <tr><td>package.json</td><td>Add <code>@mediapipe/tasks-vision</code></td></tr>
+    </tbody>
+  </table>
+
+  <h3>Explicitly out of scope</h3>
+  <ul>
+    <li>Replacing Claude vision with a CV pipeline — Claude still receives the raw image every call</li>
+    <li>OCR / text detection — Claude continues to handle sign reading in frames</li>
+    <li>Depth estimation — reserved; <code>estimateRisk()</code> has a <code>depthEstimate</code> seam but ignores it today</li>
+    <li>Alternative models (YOLO + ONNX, TF.js COCO-SSD) — EfficientDet-Lite0 via MediaPipe only</li>
+    <li>UI changes — CV operates entirely in the background; no visual components change</li>
+  </ul>
+</div>
+
+<!-- 3. Three-Loop System -->
+<div class="section" id="s3">
+  <div class="section-header">
+    <div class="section-number">03</div>
+    <div class="section-title">Three-Loop Event System</div>
+  </div>
+
+  <p>The three loops run at different rates and share data through the atomic <code>cvWorldModel</code>. JavaScript's single-threaded event loop means no true concurrency races exist between synchronous operations across loops — no orchestrator or event bus is needed.</p>
+
+  <div class="diagram-wrap">
+    <pre style="font-family: var(--mono); font-size: 13px; line-height: 1.8; color: var(--ink-secondary);">Fast loop   (~15fps, rAF):    cvDetector → cvTracker → cvWorldModel.update()
+Medium loop (~3fps,  333ms):  hazardEvaluator reads getSnapshot() → estimateRisk → audio
+Slow loop   (~1fps,  1000ms): cvContextBuilder reads getSnapshot() → Claude prompt</pre>
+    <div class="diagram-caption">Three independent loops at different rates — fast produces, medium and slow consume.</div>
+  </div>
+
+  <h3>Why these rates</h3>
+  <table>
+    <thead><tr><th>Loop</th><th>Rate</th><th>Rationale</th></tr></thead>
+    <tbody>
+      <tr><td>Fast</td><td>rAF (~15fps)</td><td>Detector + tracker cadence. Matches MediaPipe's optimal VIDEO mode throughput on mobile.</td></tr>
+      <tr><td>Medium</td><td>333ms (~3fps)</td><td>Hazard evaluation does not need to run every detection frame. 3fps catches a fast-approaching person within ~330ms while preventing audio spam.</td></tr>
+      <tr><td>Slow</td><td>1000ms (~1fps)</td><td>Claude API rate — unchanged from existing navigation loop.</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- 4. Data Flow -->
+<div class="section" id="s4">
+  <div class="section-header">
+    <div class="section-number">04</div>
+    <div class="section-title">Data Flow</div>
+  </div>
+
+  <div class="diagram-wrap">
+    <pre style="font-family: var(--mono); font-size: 13px; line-height: 2; color: var(--ink-secondary);">Camera feed (existing &lt;video&gt; element, shared)
+    │
+    ▼
+cvDetector.js       Raw MediaPipe detections per frame (label, boundingBox, confidence)
+    │
+    ▼
+cvTracker.js        Stable-ID tracked objects (IoU matching, framesVisible, smoothed confidence)
+    │
+    ▼
+cvWorldModel.js     Atomic snapshot — replaced in full each fast-loop tick
+    │
+    ├──► cvContextBuilder.js  → "CV: person center (high risk)" → Claude prompt (slow loop)
+    │
+    └──► hazardEvaluator.js   → estimateRisk() → obstacles.js → "person ahead" (medium loop)</pre>
+    <div class="diagram-caption">Data flows from camera through detector and tracker into a shared world model. Two consumers read independently at their own rates.</div>
+  </div>
+
+  <p>Each consumer reads <code>cvWorldModel.getSnapshot()</code> at its own tick rate. The snapshot is either fresh (used) or stale older than <code>CV_CONTEXT_STALENESS_MS</code> (skipped). The fast loop replaces the snapshot atomically — consumers never read partial state.</p>
+</div>
+
+<!-- 5. Latency Contract -->
+<div class="section" id="s5">
+  <div class="section-header">
+    <div class="section-number">05</div>
+    <div class="section-title">Latency Contract</div>
+  </div>
+
+  <div class="callout callout-warn">
+    <strong>Explicit contract:</strong> Every consumer of <code>cvWorldModel</code> calls <code>getSnapshot()</code> and reads the most recently completed tracker output. No consumer stores a reference to the snapshot across ticks. WorldModel replaces its internal reference atomically (replace-not-mutate) on each fast-loop update.
+  </div>
+
+  <p>This guarantees that <code>hazardEvaluator</code> (medium loop) and <code>cvContextBuilder</code> (slow loop) always read from a consistent, fully-formed frame — never a partially updated object. Even if they happen to fire in the same event-loop turn, both see the same stable snapshot from the last completed fast-loop tick.</p>
+
+  <h3>Staleness guard</h3>
+  <p>Both consumers check <code>snapshot.frameTimestamp</code> against <code>Date.now()</code>. If the snapshot is older than <code>CV_CONTEXT_STALENESS_MS</code> (1000ms), it is skipped entirely. This handles the case where the fast loop pauses (device backgrounded, rAF suspended) without producing stale alerts or prompt noise.</p>
+</div>
+
+<!-- 6. New Modules -->
+<div class="section" id="s6">
+  <div class="section-header">
+    <div class="section-number">06</div>
+    <div class="section-title">New Modules</div>
+  </div>
+
+  <h3 id="s6-detector">cvDetector.js</h3>
+  <p>Wraps <code>@mediapipe/tasks-vision</code> ObjectDetector.</p>
+  <div class="req">
+    <div class="req-header"><span class="req-id">CV-DET</span><span class="req-title">MediaPipe ObjectDetector wrapper</span></div>
+    <div class="req-body">
+      <ul>
+        <li>Model: EfficientDet-Lite0 (~4MB). ~15–20fps on iPhone A-series; ~10–15fps on mid-range Android.</li>
+        <li>Running mode: <code>"VIDEO"</code> (continuous, not single-shot). Max 5 results per frame.</li>
+        <li>Confidence threshold: <code>CV_CONFIDENCE_THRESHOLD</code> (0.5) — passed to MediaPipe at init.</li>
+        <li>Shares the existing <code>&lt;video&gt;</code> element from <code>camera.js</code>. No second camera stream.</li>
+        <li>Drives the fast loop via <code>requestAnimationFrame</code>. On each frame, calls <code>cvTracker.update()</code> then <code>cvWorldModel.update()</code>.</li>
+        <li>Exposes: <code>init(videoEl)</code>, <code>start()</code>, <code>stop()</code>. <code>stop()</code> cancels rAF and closes the detector.</li>
+      </ul>
+    </div>
+  </div>
+
+  <h3 id="s6-tracker">cvTracker.js</h3>
+  <p>IoU centroid matching assigns stable IDs across frames so the world model knows "same object" vs "new object."</p>
+  <div class="req">
+    <div class="req-header"><span class="req-id">CV-TRK</span><span class="req-title">IoU centroid tracker</span></div>
+    <div class="req-body">
+      <ul>
+        <li>On each frame, matches new detections to previous tracked objects by IoU score. A detection with best IoU &lt; 0.3 is treated as a new object and assigned a fresh ascending integer ID.</li>
+        <li>Tracks <code>framesVisible</code> (incremented each matched frame) and smooths <code>confidence</code> as a running average over matched frames.</li>
+        <li>Evicts objects not matched for <code>CV_EVICTION_FRAMES</code> (5) consecutive frames — prevents ghost objects from lingering in the world model.</li>
+        <li>Derives <code>position</code> from bounding box centroid: <code>x &lt; 0.33</code> → <code>"left"</code>, <code>x &gt; 0.67</code> → <code>"right"</code>, else <code>"center"</code>.</li>
+        <li>Exposes: <code>update(rawDetections) → trackedObjects[]</code></li>
+      </ul>
+    </div>
+  </div>
+
+  <h3 id="s6-worldmodel">cvWorldModel.js</h3>
+  <p>Single atomic snapshot store. Replace-not-mutate discipline — the entire snapshot is replaced on each fast-loop tick, never partially updated.</p>
+
+  <div class="code-block"><span class="comment">// Snapshot shape</span>
+{
+  <span class="key">"objects"</span>: [
+    {
+      <span class="key">"id"</span>: <span class="num">3</span>,
+      <span class="key">"label"</span>: <span class="str">"person"</span>,
+      <span class="key">"boundingBox"</span>: { <span class="key">"originX"</span>: <span class="num">0.2</span>, <span class="key">"originY"</span>: <span class="num">0.3</span>, <span class="key">"width"</span>: <span class="num">0.3</span>, <span class="key">"height"</span>: <span class="num">0.4</span> },
+      <span class="key">"confidence"</span>: <span class="num">0.91</span>,
+      <span class="key">"framesVisible"</span>: <span class="num">8</span>,
+      <span class="key">"position"</span>: <span class="str">"center"</span>
+    }
+  ],
+  <span class="key">"frameTimestamp"</span>: <span class="num">1234567890</span>
+}</div>
+
+  <p>Exposes: <code>update(trackedObjects, timestamp)</code> (replaces snapshot), <code>getSnapshot() → snapshot | null</code>.</p>
+
+  <h3 id="s6-risk">estimateRisk.js</h3>
+  <p>Pure function. Designed as a seam for future depth model integration — the <code>depthEstimate</code> parameter exists today but is ignored.</p>
+
+  <div class="code-block"><span class="kw">function</span> <span class="key">estimateRisk</span>({ label, boundingBox, confidence, framesVisible, depthEstimate = <span class="kw">null</span> })
+  → <span class="str">"high"</span> | <span class="str">"medium"</span> | <span class="str">"low"</span> | <span class="str">"none"</span></div>
+
+  <table>
+    <thead><tr><th>Level</th><th>Conditions</th></tr></thead>
+    <tbody>
+      <tr><td>"none"</td><td><code>confidence &lt; CV_RISK_CONFIDENCE_MIN</code> (0.7), or <code>framesVisible ≤ 1</code> (not yet confirmed across frames)</td></tr>
+      <tr><td>"low"</td><td>Any object above confidence minimum not meeting medium/high criteria (small/peripheral objects)</td></tr>
+      <tr><td>"medium"</td><td>Large furniture (chair, couch, dining table) in <code>"center"</code> position; or person above confidence minimum but <code>boundingBox.height ≤ CV_PROXIMITY_THRESHOLD</code></td></tr>
+      <tr><td>"high"</td><td><code>label === "person"</code> AND <code>boundingBox.height &gt; CV_PROXIMITY_THRESHOLD</code> (0.35) AND <code>confidence &gt; CV_RISK_CONFIDENCE_MIN</code> AND <code>framesVisible &gt; 3</code></td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout callout-info">
+    <strong>Label-aware weighting:</strong> A person is higher risk than equivalently-sized furniture regardless of bounding box dimensions. A distant person (small box) still outranks a close potted plant (large box).
+  </div>
+
+  <h3 id="s6-hazard">hazardEvaluator.js</h3>
+  <p>Runs on the medium loop (every <code>CV_MEDIUM_LOOP_MS</code>, 333ms). Evaluates risk from the world model and routes alerts to the existing <code>obstacles.js</code> speak queue.</p>
+  <div class="req">
+    <div class="req-header"><span class="req-id">CV-HAZ</span><span class="req-title">Hazard evaluation and audio routing</span></div>
+    <div class="req-body">
+      <ul>
+        <li>Reads <code>cvWorldModel.getSnapshot()</code>. Returns immediately if null or stale (&gt; <code>CV_CONTEXT_STALENESS_MS</code>).</li>
+        <li>Calls <code>estimateRisk()</code> on each tracked object.</li>
+        <li>Fires audio alert via existing <code>obstacles.js</code> <code>routeObstacles()</code> at HIGH priority when ALL three conditions hold:
+          <ul>
+            <li><code>estimateRisk()</code> returns <code>"high"</code></li>
+            <li>Object's label class has not been alerted in the last <code>CV_ALERT_COOLDOWN_MS</code> (3000ms)</li>
+            <li>Speech module's last utterance ended &gt; 2000ms ago — deference to active Claude navigation guidance</li>
+          </ul>
+        </li>
+        <li>Alert text is brief and standardized (not Claude-generated): <code>"person ahead"</code>, <code>"obstacle ahead"</code> — derived from <code>label</code> and <code>position</code>.</li>
+        <li>Exposes: <code>start()</code>, <code>stop()</code></li>
+      </ul>
+    </div>
+  </div>
+
+  <h3 id="s6-context">cvContextBuilder.js</h3>
+  <p>Called once per slow-loop Claude tick from <code>loop.js</code>. Produces a compact, filtered summary of current scene state for Claude.</p>
+  <div class="req">
+    <div class="req-header"><span class="req-id">CV-CTX</span><span class="req-title">Claude prompt context builder</span></div>
+    <div class="req-body">
+      <ul>
+        <li>Reads <code>cvWorldModel.getSnapshot()</code>. Returns <code>null</code> if null or stale.</li>
+        <li>Filters to objects with <code>estimateRisk()</code> result of <code>"medium"</code> or <code>"high"</code> only, max 3 objects. Low-risk and unconfirmed objects are excluded — they add noise without aiding navigation.</li>
+        <li>Returns compact English string: <code>"CV: person center (high risk), chair right (medium risk)"</code></li>
+        <li>Returns <code>null</code> when no qualifying objects. Claude prompt is sent without any CV prefix — no token cost when CV has nothing useful to add.</li>
+        <li>Exposes: <code>build() → string | null</code></li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- 7. Modified Files -->
+<div class="section" id="s7">
+  <div class="section-header">
+    <div class="section-number">07</div>
+    <div class="section-title">Modified Files</div>
+  </div>
+
+  <h3>src/api/claude.js — buildUserMessage()</h3>
+  <p>Add optional <code>cvContext</code> as the fifth argument (after existing <code>scanSummary</code>). When non-null, prepended as the first line of the text block so Claude sees scene context before goal and directions.</p>
+
+  <div class="code-block"><span class="kw">export function</span> <span class="key">buildUserMessage</span>(goal, context, base64Frame, scanSummary, cvContext) {
+  <span class="comment">// ...</span>
+  <span class="kw">const</span> textParts = [
+    cvContext,        <span class="comment">// null when no qualifying CV objects — filtered by .filter(Boolean)</span>
+    <span class="str">`Goal: ${goal}`</span>,
+    contextText,
+    scanSummary,
+    landmarkText,
+    goalMemoryHint,
+    spatialMemoryHint,
+    <span class="str">'Analyze this frame.'</span>,
+  ].filter(Boolean).join(<span class="str">'\n'</span>);
+  <span class="comment">// image block unchanged</span>
+}</div>
+
+  <h3>src/modules/loop.js</h3>
+  <ul>
+    <li>Import <code>cvDetector</code>, <code>hazardEvaluator</code>, <code>cvContextBuilder</code></li>
+    <li><code>startLoop()</code>: call <code>cvDetector.init(videoEl)</code>, <code>cvDetector.start()</code>, <code>hazardEvaluator.start()</code> after existing resets</li>
+    <li><code>stopLoop()</code>: call <code>cvDetector.stop()</code>, <code>hazardEvaluator.stop()</code> alongside existing cleanup</li>
+    <li>Each <code>callClaude()</code> call site: pass <code>cvContextBuilder.build()</code> as the <code>cvContext</code> argument to <code>buildUserMessage()</code></li>
+  </ul>
+
+  <h3>src/App.jsx</h3>
+  <p><code>startLoop()</code> already receives <code>videoEl</code> as its first argument. CV initialization happens inside <code>loop.js</code>'s <code>startLoop()</code> using the existing video element. No <code>App.jsx</code> signature changes required.</p>
+</div>
+
+<!-- 8. Constants -->
+<div class="section" id="s8">
+  <div class="section-header">
+    <div class="section-number">08</div>
+    <div class="section-title">Constants</div>
+  </div>
+
+  <p>All new constants added to <code>src/constants.js</code>.</p>
+
+  <div class="code-block"><span class="comment">// --- On-device CV layer (12-visionguide-computer-vision-spec.md) ---</span>
+<span class="kw">export const</span> CV_CONFIDENCE_THRESHOLD = <span class="num">0.5</span>;   <span class="comment">// MediaPipe detector init threshold</span>
+<span class="kw">export const</span> CV_RISK_CONFIDENCE_MIN  = <span class="num">0.7</span>;   <span class="comment">// minimum confidence for alert or context inclusion</span>
+<span class="kw">export const</span> CV_PROXIMITY_THRESHOLD  = <span class="num">0.35</span>;  <span class="comment">// bounding box height above which object is "close"</span>
+<span class="kw">export const</span> CV_ALERT_COOLDOWN_MS    = <span class="num">3000</span>;  <span class="comment">// per-class cooldown between hazard audio alerts</span>
+<span class="kw">export const</span> CV_CONTEXT_STALENESS_MS = <span class="num">1000</span>;  <span class="comment">// max snapshot age for Claude context or hazard eval</span>
+<span class="kw">export const</span> CV_MEDIUM_LOOP_MS       = <span class="num">333</span>;   <span class="comment">// hazardEvaluator interval (~3fps)</span>
+<span class="kw">export const</span> CV_EVICTION_FRAMES      = <span class="num">5</span>;     <span class="comment">// frames before unmatched object is evicted from tracker</span></div>
+</div>
+
+<!-- 9. Acceptance Tests -->
+<div class="section" id="s9">
+  <div class="section-header">
+    <div class="section-number">09</div>
+    <div class="section-title">Acceptance Tests</div>
+  </div>
+
+  <p>All AT-CV tests run on a physical device (iPhone iOS Safari or Chrome).</p>
+
+  <ul class="ac-list">
+    <li>
+      <svg class="ac-check" viewBox="0 0 16 16" aria-hidden="true"><rect width="16" height="16" rx="3" fill="none" stroke="#d8d5ce" stroke-width="1.5"/></svg>
+      <span><strong>AT-CV-01</strong> — After Start, browser DevTools → Console shows a "CV detector ready" log within 5 seconds of navigation beginning.</span>
+    </li>
+    <li>
+      <svg class="ac-check" viewBox="0 0 16 16" aria-hidden="true"><rect width="16" height="16" rx="3" fill="none" stroke="#d8d5ce" stroke-width="1.5"/></svg>
+      <span><strong>AT-CV-02</strong> — Hold phone toward a person. Within ~1s, a brief spoken alert fires ("person ahead") without waiting for the next Claude response. Confirms medium loop fires independently of the slow Claude loop.</span>
+    </li>
+    <li>
+      <svg class="ac-check" viewBox="0 0 16 16" aria-hidden="true"><rect width="16" height="16" rx="3" fill="none" stroke="#d8d5ce" stroke-width="1.5"/></svg>
+      <span><strong>AT-CV-03</strong> — Walk toward a chair in an otherwise clear corridor. The Claude API request visible in DevTools → Network includes a <code>"CV: chair..."</code> prefix line in the request body. Confirms context builder enriches Claude prompts when qualifying objects are present.</span>
+    </li>
+    <li>
+      <svg class="ac-check" viewBox="0 0 16 16" aria-hidden="true"><rect width="16" height="16" rx="3" fill="none" stroke="#d8d5ce" stroke-width="1.5"/></svg>
+      <span><strong>AT-CV-04</strong> — Point phone at an empty hallway with no obstacles. No CV audio alert fires. Confirms alert suppression when no high-risk objects are present.</span>
+    </li>
+    <li>
+      <svg class="ac-check" viewBox="0 0 16 16" aria-hidden="true"><rect width="16" height="16" rx="3" fill="none" stroke="#d8d5ce" stroke-width="1.5"/></svg>
+      <span><strong>AT-CV-05</strong> — Press Stop. No further CV audio fires after Stop. DevTools confirms no further rAF callbacks from cvDetector. Confirms clean teardown.</span>
+    </li>
+    <li>
+      <svg class="ac-check" viewBox="0 0 16 16" aria-hidden="true"><rect width="16" height="16" rx="3" fill="none" stroke="#d8d5ce" stroke-width="1.5"/></svg>
+      <span><strong>AT-CV-06</strong> — While Claude is speaking a navigation direction, a CV alert for an object that appeared mid-sentence does not interrupt until speech ends. Confirms speech-deference logic (2000ms post-utterance holdoff).</span>
+    </li>
+    <li>
+      <svg class="ac-check" viewBox="0 0 16 16" aria-hidden="true"><rect width="16" height="16" rx="3" fill="none" stroke="#d8d5ce" stroke-width="1.5"/></svg>
+      <span><strong>AT-CV-07</strong> — Point phone steadily at a person for 10 seconds. Alert fires ≤ 3 times (once per <code>CV_ALERT_COOLDOWN_MS</code>, 3s). Confirms per-class cooldown.</span>
+    </li>
+  </ul>
+</div>
+
+<!-- 10. Definition of Done -->
+<div class="section" id="s10">
+  <div class="section-header">
+    <div class="section-number">10</div>
+    <div class="section-title">Definition of Done</div>
+  </div>
+
+  <ul>
+    <li><code>npm install</code>, <code>npm run build</code>, and <code>npm run lint</code> all pass clean.</li>
+    <li>AT-CV-01 through AT-CV-07 pass on a physical device (iPhone iOS Safari or Chrome).</li>
+    <li>Existing acceptance tests AT-01–AT-W4-12, AT-SC-01–07, AT-EX-01–06 still pass — navigation, obstacle detection, and arrival behavior are unchanged.</li>
+    <li><code>context/progress-tracker.md</code> and <code>context/specifications/visionguide-prd.html</code> updated to reflect this spec, per this repo's existing process.</li>
+  </ul>
+
+  <div class="callout callout-success">
+    <strong>Future extensibility:</strong> Once this spec ships, the <code>estimateRisk()</code> function's <code>depthEstimate</code> seam and the <code>cvContextBuilder</code>'s JSON-first world model are the designated integration points for depth estimation and fine-tuned model variants respectively — no architecture changes needed.
+  </div>
+</div>
+
+</main>
+</div>
+
+</body>
+</html>

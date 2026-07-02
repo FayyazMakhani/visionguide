@@ -93,6 +93,12 @@ Rules:
   close the user is. A legible sign seen from a distance is goal_found=false with low
   goal_confidence; the same sign filling a large portion of the frame right ahead is
   goal_found=true with high goal_confidence.
+- A sign that names the destination but also carries a directional arrow or "this way"-style
+  wording is a wayfinding sign, not an arrival marker — set goal_found=false and instead follow
+  the arrow: set navigation_direction to turn/go left or right, matching whichever way the arrow
+  points, no matter how large or close the sign itself is. Only set goal_found=true when the
+  matching sign is mounted on or immediately beside a door with no directional arrow — that
+  placement means the room is right there, not merely pointed toward.
 - For physical-object goals with no signage (e.g. "my shoes", "my keys"), require the same
   closeness before goal_found=true: the object must fill a large portion of the frame, within
   roughly an arm's length, at floor/table level the user could reach or bend down to pick up —

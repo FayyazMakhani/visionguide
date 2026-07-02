@@ -192,14 +192,20 @@ Update this file whenever the current phase, active feature, or implementation s
   - Verified `npm run build` and `npm run lint` both pass clean.
   - Not yet done: on-device validation that the carried summary measurably improves explore/navigate guidance, and tuning of the summary wording against real-building observations — fold into the next `prompt-tuning-log.md` session.
 
+- **`12-visionguide-computer-vision-spec.md` spec written** (branch `feature/spec-12-computer-vision`) — on-device CV layer design finalized; documentation complete; implementation pending:
+  - `context/specifications/12-visionguide-computer-vision-spec.md` — implementation spec (markdown)
+  - `context/specifications/12-visionguide-computer-vision.html` — standalone HTML PRD for the CV feature
+  - `context/specifications/visionguide-prd.html` — updated with section 17 (CV layer requirements FR-CV-01–04), OQ-08 resolved (iOS officially supported), NFR-08 updated, platform meta updated to include iOS
+  - Architecture: three-loop event system (fast ~15fps MediaPipe, medium ~3fps hazard evaluation, slow ~1fps Claude) sharing an atomic world model; 6 new modules, 5 modified files. See spec for full detail.
+  - **Not yet implemented** — code changes (cvDetector, cvTracker, cvWorldModel, cvContextBuilder, hazardEvaluator, estimateRisk, loop.js, claude.js, App.jsx, constants.js integration) will be done in a separate implementation session.
+
 ## In Progress
 
-- `feature/ui-redesign` — spec 11 implemented and verified (build/lint). Pending: visual/on-device pass (AT-CR-01–05) and opening the PR.
-- `feature/scan-summary-context` — scan-summary carry-over implemented and verified (build/lint). Pending: on-device validation and PR into `develop`.
-- All Week 1–4 + scan-phase + guided-scan + frame-preview code changes are implemented. Remaining work is on-device acceptance testing of `09-visionguide-guided-scan-spec.md` and `10-visionguide-frame-preview-spec.md`, plus the real-world Week 4 polish/demo-prep punch list below, none started yet.
+- `feature/spec-12-computer-vision` — Spec 12 documentation complete (spec md, HTML PRD, PRD update, progress tracker). Code implementation pending — see Next Up.
 
 ## Next Up
 
+- **Implement Spec 12** (`feature/spec-12-computer-vision` branch): install `@mediapipe/tasks-vision`, add constants, create 6 new modules (cvDetector, cvTracker, cvWorldModel, cvContextBuilder, hazardEvaluator, estimateRisk), update loop.js / claude.js / App.jsx / constants.js / package.json. Then run AT-CV-01–07 on a physical device.
 - Verify the camera/microphone release bug fixes (above) in a real browser: confirm the camera/tab indicator turns off on goal arrival and on explore-phase give-up (not just on the Stop button), confirm the GoalInput mic indicator turns off on unmount-mid-listen and on Stop while auto-listen is active, and confirm a rapid double-tap on Start never leaves an extra live `MediaStreamTrack` running.
 - Run `09-visionguide-guided-scan-spec.md`'s on-device acceptance tests (AT-GS-01–06, AT-DA-01–03) — in particular AT-GS-05 (no-gyroscope timer fallback) and the iOS motion-permission prompt, which can't be verified without a physical device.
 - Run `10-visionguide-frame-preview-spec.md`'s on-device acceptance tests (AT-FP-01–04) — confirm the displayed frame updates in step with spoken instructions and clears correctly on Stop/new session.
@@ -211,11 +217,10 @@ Update this file whenever the current phase, active feature, or implementation s
 - Day 5: fill in and print `demo-day-runbook.md`.
 - Before final deploy: complete the §11.1 pre-deploy checklist (bump `package.json` version to 1.0.0, confirm no temporary test code remains) — not done yet since it asserts a readiness state not yet reached.
 - Set the $5.00/day hard spend limit in the Anthropic console (NFR-07) before any further device testing, if not already done.
-- Resolve OQ-08 (Chrome-on-iOS WebKit caveat) — decide whether to broaden NFR-08/§7 Out of Scope to officially cover iOS, or treat the iOS pass as anecdotal and keep Android Chrome as the only committed target.
 
 ## Open Questions
 
-- OQ-08: On-device testing passed on "Chrome on iOS" as well as Chrome on Android. iOS Chrome runs on Apple's WebKit engine, not Blink — Apple requires this for all iOS browsers — so a pass there doesn't confirm the PRD's Android-Chrome-specific assumptions (`webkitSpeechRecognition` behavior, `getUserMedia` constraints) the way an Android Chrome pass does. PRD NFR-08 and §7 Out of Scope explicitly exclude iOS/Safari for this exact reason ("Web Speech API and camera constraints on iOS Safari are unreliable"). Not resolved here — needs a decision on whether to update NFR-08/§7 to officially support iOS now that it's been observed working, or treat it as informal/anecdotal and keep the PRD's Android-only commitment as-is.
+- OQ-08 (resolved): iOS is now officially supported. Decision made as part of Spec 12 design (the primary development device is iPhone). NFR-08 updated in `visionguide-prd.html` to cover iOS Safari 16+ / Chrome on iOS 16+ alongside Chrome 120+ on Android 10+. Platform meta and §7 Out of Scope updated accordingly. `@mediapipe/tasks-vision` (Spec 12) targets iOS as the primary device and is verified to run on A-series chips at 15–20fps via WebAssembly + WebGL.
 - OQ-07 (resolved): `App.jsx`'s safety prompt only speaks once per calendar day (`localStorage.vg_safety_date` gate, predates the scan-phase spec), which previously contradicted PRD FR-UI-03 and the scan-phase spec's AT-SC-01/AT-SC-05. Decision: the once-per-day behavior is correct as implemented; PRD FR-UI-03/AC-SCAN-01 and `05-visionguide-scan-phase-spec.md` AT-SC-01/AT-SC-05/Definition-of-Done have been updated to document once-per-day instead. No code change needed — `App.jsx`'s existing behavior was already right.
 - OQ-03 (resolved): demo device confirmed — physical device testing completed on Chrome on Android (and iOS, see OQ-08) — full acceptance backlog passed.
 - OQ-04 (resolved): Week 3's dependency on Week 2's on-device sign-off was satisfied retroactively — both Week 2 (AT-01–AT-10) and Week 3 (AT-W3-01–AT-W3-10) on-device suites have now passed.

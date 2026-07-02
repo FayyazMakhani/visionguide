@@ -572,6 +572,7 @@
   <a class="nav-link" href="#s14">14. Risks &amp; Mitigations</a>
   <a class="nav-link" href="#s15">15. Open Questions</a>
   <a class="nav-link" href="#s16">16. Deferred but Architected</a>
+  <a class="nav-link" href="#s17">17. On-Device CV Layer (Spec 12)</a>
 </nav>
 
 <!-- Main content -->
@@ -597,7 +598,7 @@
       </div>
       <div class="meta-item">
         <span class="meta-label">Platform</span>
-        <span class="meta-value">Web — Chrome on Android</span>
+        <span class="meta-value">Web — iOS Safari/Chrome, Android Chrome</span>
       </div>
       <div class="meta-item">
         <span class="meta-label">Timeline</span>
@@ -1147,7 +1148,7 @@
         <tr><td>NFR-05</td><td>Performance</td><td>Browser memory over 10 min session</td><td>&le;200 MB</td></tr>
         <tr><td>NFR-06</td><td>Accessibility</td><td>WCAG 2.1 AA compliance</td><td>All UI elements</td></tr>
         <tr><td>NFR-07</td><td>Cost</td><td>API spend cap</td><td>Set a $5.00 hard monthly spend limit in the Anthropic console under Billing &gt; Usage limits before demo day. This enforces the cap server-side with no application code required. Monitor daily via the dashboard.</td></tr>
-        <tr><td>NFR-08</td><td>Compatibility</td><td>Target browser</td><td>Chrome 120+ on Android 10+</td></tr>
+        <tr><td>NFR-08</td><td>Compatibility</td><td>Target browser</td><td>iOS Safari 16+ / Chrome on iOS 16+; Chrome 120+ on Android 10+ (OQ-08 resolved — iOS officially supported)</td></tr>
       </tbody>
     </table>
     <p>NFR-01/NFR-02 mitigation: the <code>navigate</code> phase (the highest-frequency tick, and the phase users spend the most time in) now calls a faster model (<code>claude-haiku-4-5-20251001</code>) instead of Sonnet, and the arrival fast-path (FR-NAV-03) can confirm goal arrival in one round trip instead of two when confidence is unambiguous. <code>scan</code>/<code>explore</code> keep Sonnet, since signage-reading accuracy to first locate the destination matters more there than shaving latency. Thresholds themselves are unchanged — this targets them, it doesn't redefine them.</p>
@@ -1658,6 +1659,7 @@ Rules:
       <thead><tr><th>ID</th><th>Question</th><th>Owner</th><th>Decision needed by</th></tr></thead>
       <tbody>
         <tr><td>OQ-03</td><td>Is there a specific device being used for the demo? Voice and camera behavior vary significantly across Android versions.</td><td>Team</td><td>Week 1</td></tr>
+        <tr><td>OQ-08 ✓</td><td><strong>Resolved.</strong> iOS officially supported. On-device acceptance testing passed on iOS Safari and Chrome on iOS (WebKit). NFR-08 updated accordingly. MediaPipe tasks-vision (Spec 12) also targets iOS as the primary device.</td><td>—</td><td>Resolved Spec 12</td></tr>
       </tbody>
     </table>
 
@@ -1729,6 +1731,68 @@ Rules:
 
     <h3>API Budget (OQ-04 resolved)</h3>
     <p>Budget is $5.00/day. At ~$0.003/call (claude-sonnet-4-6 with a 640×480 JPEG at 1 fps), $5 covers ~1,666 calls — approximately 27 minutes of continuous active navigation. Sufficient for demo day with headroom. Monitor via the Anthropic dashboard. No in-app enforcement needed for a single controlled device.</p>
+
+
+  <!-- S17: On-Device CV Layer -->
+  <section class="section" id="s17">
+    <div class="section-header">
+      <span class="section-number">17</span>
+      <h2 class="section-title">On-Device CV Layer (Spec 12)</h2>
+    </div>
+
+    <p>Spec 12 adds MediaPipe Object Detection running at ~15fps as a parallel fast layer alongside Claude's existing 1fps vision loop. This addresses the safety latency gap: Claude's 1s cadence cannot catch a person walking toward the user within a single frame.</p>
+
+    <div class="callout callout-info">
+      <strong>Design principle:</strong> CV augments Claude — it does not replace it. Claude continues to receive raw camera frames and handles all navigation reasoning, goal recognition, and spatial understanding. CV adds continuous scene awareness between Claude calls.
+    </div>
+
+    <h3>Architecture: three loops</h3>
+    <table>
+      <thead><tr><th>Loop</th><th>Rate</th><th>Job</th></tr></thead>
+      <tbody>
+        <tr><td>Fast (rAF)</td><td>~15fps</td><td>cvDetector → cvTracker → cvWorldModel.update()</td></tr>
+        <tr><td>Medium (333ms)</td><td>~3fps</td><td>hazardEvaluator → estimateRisk() → obstacles.js → audio</td></tr>
+        <tr><td>Slow (1000ms)</td><td>~1fps</td><td>cvContextBuilder → Claude prompt (existing loop)</td></tr>
+      </tbody>
+    </table>
+
+    <h3>New requirements</h3>
+
+    <div class="req">
+      <div class="req-header"><span class="req-id">FR-CV-01</span><span class="req-title">Parallel on-device detection</span><span class="badge badge-mvp">Spec 12</span></div>
+      <div class="req-body">MediaPipe EfficientDet-Lite0 runs at ~15fps sharing the existing camera stream. It does not block or delay the Claude vision loop. Start/stop is tied to navigation start/stop.</div>
+    </div>
+
+    <div class="req">
+      <div class="req-header"><span class="req-id">FR-CV-02</span><span class="req-title">Real-time hazard alerts</span><span class="badge badge-mvp">Spec 12</span></div>
+      <div class="req-body">When CV detects a high-risk object (person close ahead, large obstacle in center), a brief audio alert fires via the existing obstacle speak queue within ~333ms. The alert does not interrupt active Claude navigation speech — it waits for a 2s gap. Per-class 3s cooldown prevents repetition.</div>
+    </div>
+
+    <div class="req">
+      <div class="req-header"><span class="req-id">FR-CV-03</span><span class="req-title">Claude prompt enrichment</span><span class="badge badge-mvp">Spec 12</span></div>
+      <div class="req-body">On each 1fps Claude tick, a compact CV scene snapshot is prepended to the prompt when qualifying objects (medium/high risk, max 3) are currently detected and the snapshot is fresh (&lt;1s old). Example: <code>"CV: person center (high risk), chair right (medium risk)"</code>. When no qualifying objects, Claude prompt is sent without the prefix.</div>
+    </div>
+
+    <div class="req">
+      <div class="req-header"><span class="req-id">FR-CV-04</span><span class="req-title">Latency contract</span><span class="badge badge-mvp">Spec 12</span></div>
+      <div class="req-body">All consumers of the world model call <code>cvWorldModel.getSnapshot()</code> — the most recently completed tracker output. World model replaces its snapshot atomically (replace-not-mutate). No consumer holds a reference across ticks. Both medium and slow loops skip the snapshot if it is older than <code>CV_CONTEXT_STALENESS_MS</code> (1000ms).</div>
+    </div>
+
+    <h3>New modules</h3>
+    <table>
+      <thead><tr><th>Module</th><th>Role</th></tr></thead>
+      <tbody>
+        <tr><td>src/modules/cvDetector.js</td><td>MediaPipe wrapper — raw detections per frame</td></tr>
+        <tr><td>src/modules/cvTracker.js</td><td>IoU centroid tracker — stable IDs, framesVisible, smoothed confidence</td></tr>
+        <tr><td>src/modules/cvWorldModel.js</td><td>Atomic snapshot store (replace-not-mutate)</td></tr>
+        <tr><td>src/modules/cvContextBuilder.js</td><td>Snapshot → compact Claude prompt string</td></tr>
+        <tr><td>src/modules/hazardEvaluator.js</td><td>Risk evaluation + audio routing (medium loop)</td></tr>
+        <tr><td>src/utils/estimateRisk.js</td><td>Pure risk function with <code>depthEstimate</code> seam for future depth model</td></tr>
+      </tbody>
+    </table>
+
+    <p>See <a href="12-visionguide-computer-vision.html">12-visionguide-computer-vision.html</a> for the full spec including module specifications, acceptance tests, and definition of done.</p>
+  </section>
 
 </main>
 </div>

@@ -9,12 +9,15 @@ import { CV_CONFIDENCE_THRESHOLD } from '../constants.js';
 // npm package, no CDN dependency at runtime. See spec 12 plan, Task 1.
 const WASM_PATH = '/mediapipe/wasm';
 const MODEL_PATH = '/models/efficientdet_lite0.tflite';
+const DETECT_MIN_INTERVAL_MS = 66; // floor detections to ~15fps — detectForVideo is synchronous on the main thread
 
 let detector = null;
 let videoEl = null;
 let rafId = null;
 let running = false;
 let lastVideoTime = -1;
+let lastDetectAt = 0;
+let warnedFrameError = false;
 // Bumped on stop() so an init() still awaiting the model download knows its
 // session already ended and closes the late-created detector instead of
 // resurrecting a stopped CV layer.
@@ -68,6 +71,8 @@ export function start() {
   cvTracker.reset();
   cvWorldModel.reset();
   lastVideoTime = -1;
+  lastDetectAt = 0;
+  warnedFrameError = false;
   rafId = requestAnimationFrame(onFrame);
 }
 
@@ -77,11 +82,27 @@ function onFrame() {
 
   if (!detector || !videoEl || videoEl.readyState < 2) return;
   if (videoEl.currentTime === lastVideoTime) return; // same camera frame — skip
+
+  const nowMs = performance.now();
+  if (nowMs - lastDetectAt < DETECT_MIN_INTERVAL_MS) return;
+  lastDetectAt = nowMs;
+
   lastVideoTime = videoEl.currentTime;
 
-  const result = detector.detectForVideo(videoEl, performance.now());
-  const tracked = cvTracker.update(normalizeDetections(result.detections));
-  cvWorldModel.update(tracked, Date.now());
+  // A recurring per-frame error at 15Hz would otherwise spam the console hard
+  // enough to cost main-thread time; the staleness guards already make
+  // consumers degrade safely, so one warning per session is enough.
+  try {
+    const result = detector.detectForVideo(videoEl, performance.now());
+    const tracked = cvTracker.update(normalizeDetections(result.detections));
+    cvWorldModel.update(tracked, Date.now());
+  } catch (err) {
+    if (!warnedFrameError) {
+      console.warn('CV frame detection failed:', err.message);
+      warnedFrameError = true;
+    }
+    return;
+  }
 }
 
 // MediaPipe boundingBoxes are in pixels; the rest of the CV layer works in

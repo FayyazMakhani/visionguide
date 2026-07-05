@@ -197,7 +197,7 @@ Update this file whenever the current phase, active feature, or implementation s
   - `context/specifications/12-visionguide-computer-vision.html` — standalone HTML PRD for the CV feature
   - `context/specifications/visionguide-prd.html` — updated with section 17 (CV layer requirements FR-CV-01–04), OQ-08 resolved (iOS officially supported), NFR-08 updated, platform meta updated to include iOS
   - Architecture: three-loop event system (fast ~15fps MediaPipe, medium ~3fps hazard evaluation, slow ~1fps Claude) sharing an atomic world model; 6 new modules, 5 modified files. See spec for full detail.
-  - **Not yet implemented** — code changes (cvDetector, cvTracker, cvWorldModel, cvContextBuilder, hazardEvaluator, estimateRisk, loop.js, claude.js, App.jsx, constants.js integration) will be done in a separate implementation session.
+  - **Not yet implemented at the time of that entry** (since done — see the implementation entry below) — code changes (cvDetector, cvTracker, cvWorldModel, cvContextBuilder, hazardEvaluator, estimateRisk, loop.js, claude.js, App.jsx, constants.js integration) will be done in a separate implementation session.
 
 - **`12-visionguide-computer-vision-spec.md` implemented** (branch `feature/spec-12-cv-implementation`, off the spec-writing work above) — the three-loop on-device CV layer (fast ~15fps MediaPipe detector, medium ~3fps hazard evaluator, slow ~1fps Claude loop, sharing one atomic world model) is now code:
   - `package.json`/`package-lock.json` — added `@mediapipe/tasks-vision` (`^0.10.35`).

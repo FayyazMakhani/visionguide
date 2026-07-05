@@ -71,6 +71,9 @@ let scanSummary = '';
  * goal is found. SCAN_TIMEOUT_MS is an overall safety net in case a leg's
  * turn-detection never resolves.
  *
+ * Also starts the on-device CV layer (cvDetector fast loop + hazardEvaluator
+ * medium loop — spec 12); CV init failure is non-fatal.
+ *
  * @param {HTMLVideoElement} videoEl      - Live camera feed element
  * @param {React.MutableRefObject} streamRef - Ref to the active MediaStream (updatable on frozen-frame reinit)
  * @param {React.MutableRefObject} stateRef - Ref containing { goal: string, context: string[] }
@@ -489,6 +492,7 @@ export function startLoop(videoEl, streamRef, stateRef, callbacks) {
 /**
  * Stop the navigation loop. Safe to call if loop is not running.
  * Resets phase to 'scan' so the next Start always begins there.
+ * Also stops the on-device CV layer (cvDetector + hazardEvaluator).
  */
 export function stopLoop() {
   cvDetector.stop();

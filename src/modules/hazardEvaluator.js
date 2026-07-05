@@ -9,7 +9,10 @@ import { CV_MEDIUM_LOOP_MS, CV_CONTEXT_STALENESS_MS, CV_ALERT_COOLDOWN_MS } from
 // within this window after speech was last observed playing — a CV alert never
 // cuts into Claude's navigation guidance mid-sentence (spec 12, AT-CV-06).
 // Sampled once per medium-loop tick, so the window is accurate to ±CV_MEDIUM_LOOP_MS,
-// erring toward waiting slightly longer — the safe direction.
+// erring toward waiting slightly longer — the safe direction. Also defers while
+// `pending` — an utterance already handed to the native queue but whose `onstart`
+// hasn't fired yet — since a CV alert here would cancel it via speak(alert, true)
+// and speech.js's 10s dedup would then silently drop an identical retry.
 const SPEECH_IDLE_MS = 2000;
 
 let intervalId = null;
@@ -41,7 +44,7 @@ export function stop() {
 function tick() {
   const now = Date.now();
 
-  if (window.speechSynthesis.speaking) {
+  if (window.speechSynthesis.speaking || window.speechSynthesis.pending) {
     lastSpeakingObservedAt = now;
     return;
   }

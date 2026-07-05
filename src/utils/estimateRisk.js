@@ -1,3 +1,5 @@
+// src/utils/estimateRisk.js
+
 import { CV_RISK_CONFIDENCE_MIN, CV_PROXIMITY_THRESHOLD } from '../constants.js';
 
 // COCO labels treated as large furniture for the medium-risk rule.

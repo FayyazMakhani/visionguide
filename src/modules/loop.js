@@ -19,6 +19,9 @@ import {
   hasGyroData,
 } from './gyroscope.js';
 import * as guidedScan from './guidedScan.js';
+import * as cvDetector from './cvDetector.js';
+import * as hazardEvaluator from './hazardEvaluator.js';
+import * as cvContextBuilder from './cvContextBuilder.js';
 import {
   LOOP_INTERVAL_MS,
   API_TIMEOUT_MS,
@@ -100,6 +103,13 @@ export function startLoop(videoEl, streamRef, stateRef, callbacks) {
   phase = 'scan';
   guidedScan.resetGuidedScan();
 
+  // On-device CV layer (spec 12): fast detector loop + medium hazard loop run
+  // for the whole session. Init failure (e.g. model fetch) must never block
+  // navigation — CV augments Claude vision, it doesn't gate it.
+  cvDetector.init(videoEl).catch(err => console.warn('CV detector unavailable:', err.message));
+  cvDetector.start();
+  hazardEvaluator.start();
+
   async function tick() {
     // Guard: skip if prior call is still in flight
     if (pending) return;
@@ -179,7 +189,7 @@ export function startLoop(videoEl, streamRef, stateRef, callbacks) {
         buildSystemPrompt('navigation');
 
       const model = phase === 'navigate' ? NAVIGATE_MODEL : SCAN_MODEL;
-      const result = await callClaude(systemPrompt, [buildUserMessage(goal, context, frame, scanSummary)], abortController.signal, model);
+      const result = await callClaude(systemPrompt, [buildUserMessage(goal, context, frame, scanSummary, cvContextBuilder.build())], abortController.signal, model);
 
       clearTimeout(silenceTimer);
 
@@ -481,6 +491,8 @@ export function startLoop(videoEl, streamRef, stateRef, callbacks) {
  * Resets phase to 'scan' so the next Start always begins there.
  */
 export function stopLoop() {
+  cvDetector.stop();
+  hazardEvaluator.stop();
   if (abortController !== null) {
     abortController.abort();
     abortController = null;

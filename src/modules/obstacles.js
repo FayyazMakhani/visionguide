@@ -81,6 +81,13 @@ function formatObstacleAlert(obstacle) {
     return `Caution — ${type} ${dir}`;
   }
 
+  // CV hazard alerts (spec 12) use "ahead" for a centered object —
+  // "Person ahead", not "Person on your ahead". Claude-reported obstacles
+  // use left|center|right and never hit this branch.
+  if (dir === 'ahead') {
+    return `${capitalize(type)} ahead`;
+  }
+
   return `${capitalize(type)} on your ${dir}`;
 }
 

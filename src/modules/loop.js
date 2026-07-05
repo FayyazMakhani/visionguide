@@ -56,6 +56,7 @@ let phase = 'scan';
 let scanTimerId = null;
 let exploreTimerId = null;
 let rejectGoalHandler = null;
+let scanSummary = '';
 
 /**
  * Start the navigation loop. Always begins in scan phase: a guided
@@ -178,7 +179,7 @@ export function startLoop(videoEl, streamRef, stateRef, callbacks) {
         buildSystemPrompt('navigation');
 
       const model = phase === 'navigate' ? NAVIGATE_MODEL : SCAN_MODEL;
-      const result = await callClaude(systemPrompt, [buildUserMessage(goal, context, frame)], abortController.signal, model);
+      const result = await callClaude(systemPrompt, [buildUserMessage(goal, context, frame, scanSummary)], abortController.signal, model);
 
       clearTimeout(silenceTimer);
 
@@ -417,6 +418,7 @@ export function startLoop(videoEl, streamRef, stateRef, callbacks) {
   }
 
   function onScanTimeout() {
+    scanSummary = guidedScan.getScanSummary();
     const goal = stateRef.current.goal;
     transitionToExplore(`I'll guide you through the building to find ${goal}. Follow my directions.`);
   }
@@ -427,6 +429,7 @@ export function startLoop(videoEl, streamRef, stateRef, callbacks) {
   // stood out — falls back to the same generic explore hand-off as a scan
   // timeout.
   function finishGuidedScan() {
+    scanSummary = guidedScan.getScanSummary();
     const decision = guidedScan.decide();
     if (decision.type === 'direction') {
       transitionToExplore(decision.instruction);
@@ -501,6 +504,7 @@ export function stopLoop() {
   lastStaleWarningAt = 0;
   phase = 'scan';
   rejectGoalHandler = null;
+  scanSummary = '';
 }
 
 /**

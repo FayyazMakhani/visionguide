@@ -80,9 +80,10 @@ export async function callClaude(systemPrompt, messages, signal, model = 'claude
  * @param {string} goal          - User's destination string
  * @param {string[]} context     - Last 2 navigation_direction strings
  * @param {string} base64Frame   - JPEG base64 string (no data: prefix)
+ * @param {string} [scanSummary] - One-line summary of the 4-direction scan results
  * @returns {object}             - Anthropic user message object
  */
-export function buildUserMessage(goal, context, base64Frame) {
+export function buildUserMessage(goal, context, base64Frame, scanSummary) {
   const contextText = context.length > 0
     ? `Prior directions: ${context.join(' → ')}`
     : 'No prior context.';
@@ -94,6 +95,7 @@ export function buildUserMessage(goal, context, base64Frame) {
   const textParts = [
     `Goal: ${goal}`,
     contextText,
+    scanSummary,
     landmarkText,
     goalMemoryHint,
     spatialMemoryHint,

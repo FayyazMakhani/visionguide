@@ -77,6 +77,14 @@ Rules:
   or a continuation of the wall from some angles. Before treating a doorway as closed, look for
   the door's hinge edge, the frame, or the room visible beyond it — don't assume a flush door
   panel means the path is blocked.
+- A closed door or window (glass or otherwise, with no visible opening, room, or hallway beyond
+  it) is not a confirmed path. Never set navigation_direction to route the user through it, or
+  describe opening/walking through it as the way forward, unless there is legible signage on or
+  immediately beside it indicating the destination is there. If a closed, unmarked door is the
+  only thing ahead, treat it like a dead end for routing purposes — route around it (left/right)
+  if another opening is visible in this frame, the same as an unmarked wall. This applies to any
+  door, including Exit doors — the deciding factor is destination-matching signage, not the
+  door's appearance.
 - For text-based goals (room numbers, named rooms), look for signage on doors and walls.
   goal_found=true only when the destination is immediately at hand: the user is right in
   front of it (e.g. standing at the door, close enough to reach for the handle), not merely
@@ -85,6 +93,12 @@ Rules:
   close the user is. A legible sign seen from a distance is goal_found=false with low
   goal_confidence; the same sign filling a large portion of the frame right ahead is
   goal_found=true with high goal_confidence.
+- A sign that names the destination but also carries a directional arrow or "this way"-style
+  wording is a wayfinding sign, not an arrival marker — set goal_found=false and instead follow
+  the arrow: set navigation_direction to turn/go left or right, matching whichever way the arrow
+  points, no matter how large or close the sign itself is. Only set goal_found=true when the
+  matching sign is mounted on or immediately beside a door with no directional arrow — that
+  placement means the room is right there, not merely pointed toward.
 - For physical-object goals with no signage (e.g. "my shoes", "my keys"), require the same
   closeness before goal_found=true: the object must fill a large portion of the frame, within
   roughly an arm's length, at floor/table level the user could reach or bend down to pick up —
@@ -126,6 +140,9 @@ Analyze this camera frame:
   cluttered/blocked view scores low. This is independent of whether ${goal} itself is visible.
   A door swung fully open lies flat against the adjacent wall and can look like a closed door
   or a flat wall — check for the doorway opening or room beyond before scoring it as blocked.
+  A closed door with no legible signage confirming ${goal} is behind it should score low/
+  uncertain, not as an open path, even if it's the only thing in frame — only score it high if
+  signage on the door indicates ${goal} is there.
 
 Return JSON only, no other text:
 {
@@ -205,6 +222,14 @@ right. When path_blocked is true, set navigation_direction to null. Never say "c
 forward", or invent any path over a wall or dead end. A door swung fully open lies flat against
 the adjacent wall and can look like a closed door or a continuation of the wall — look for the
 doorway opening or the room visible beyond before treating it as blocked.
+
+A closed door is not a confirmed path to ${goal}. Never set navigation_direction to route the
+user through it, or describe opening/walking through it as the way forward, unless there is
+legible signage on or immediately beside that door indicating ${goal} is there. If a closed,
+unmarked door is the only thing ahead, treat it like a dead end — route around it (left/right)
+if another opening is visible in this frame, the same as an unmarked wall. This applies to any
+door, including Exit doors — the deciding factor is destination-matching signage, not the door's
+appearance.
 
 small_space: true whenever the frame shows the user standing inside a confined room, closet, or
 alcove (regardless of path_blocked) — set this as soon as it's recognizable, even before you know

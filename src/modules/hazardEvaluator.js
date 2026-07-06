@@ -53,9 +53,11 @@ function tick() {
   const snapshot = cvWorldModel.getSnapshot();
   if (!snapshot || now - snapshot.frameTimestamp > CV_CONTEXT_STALENESS_MS) return;
 
-  for (const obj of snapshot.objects) {
-    if (estimateRisk(obj) !== 'high') continue;
+  const highRisk = snapshot.objects
+    .filter(obj => estimateRisk(obj) === 'high')
+    .sort((a, b) => b.boundingBox.height - a.boundingBox.height); // closer first
 
+  for (const obj of highRisk) {
     const lastAt = lastAlertAtByLabel.get(obj.label) ?? 0;
     if (now - lastAt < CV_ALERT_COOLDOWN_MS) continue;
     lastAlertAtByLabel.set(obj.label, now);

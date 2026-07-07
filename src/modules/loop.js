@@ -231,7 +231,7 @@ export function startLoop(videoEl, streamRef, stateRef, callbacks) {
           clearInterval(intervalId);
           intervalId = setInterval(tick, LOOP_INTERVAL_MS);
 
-          speak(result.navigation_direction, false, () => callbacks.onSpeak(result.navigation_direction));
+          speak(result.navigation_direction, false, () => callbacks.onSpeak(result.navigation_direction), null, 'direction');
           callbacks.onContextUpdate(result.navigation_direction, frame, detections);
           return;
         }
@@ -263,7 +263,7 @@ export function startLoop(videoEl, streamRef, stateRef, callbacks) {
           }
           consecutivePathBlocked = 0;
           const direction = result.navigation_direction || "I don't see a clear path. Try turning left or right.";
-          speak(direction, false, () => callbacks.onSpeak(direction));
+          speak(direction, false, () => callbacks.onSpeak(direction), null, 'direction');
           callbacks.onContextUpdate(direction, frame, detections);
         } else {
           maybeSpeakDropNotice();
@@ -314,7 +314,7 @@ export function startLoop(videoEl, streamRef, stateRef, callbacks) {
 
       // Speak navigation direction
       if (result.navigation_direction) {
-        speak(result.navigation_direction, false, () => callbacks.onSpeak(result.navigation_direction));
+        speak(result.navigation_direction, false, () => callbacks.onSpeak(result.navigation_direction), null, 'direction');
         callbacks.onContextUpdate(result.navigation_direction, frame, detections);
         extractLandmarks(result.navigation_direction);
       }

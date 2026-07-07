@@ -99,8 +99,14 @@ function processQueue() {
  *                                 (not when it's enqueued) — use this to sync UI text to audio.
  * @param {function} [onEnd]     - Called once this utterance finishes (or errors out) —
  *                                 use this to defer teardown until the message was actually heard.
+ * @param {string} [category]    - When set, a later queued (non-interrupt) utterance with the
+ *                                 same category drops this one first if it hasn't started playing
+ *                                 yet — prevents a backlog of superseded navigation directions
+ *                                 piling up and being read out well after the user has moved past
+ *                                 them. The utterance already handed to speechSynthesis (i.e.
+ *                                 actively playing) is never touched, so it always finishes naturally.
  */
-export function speak(text, interrupt = false, onStart, onEnd) {
+export function speak(text, interrupt = false, onStart, onEnd, category = null) {
   if (!text || !text.trim()) return;
 
   // Deduplication: don't repeat the same direction within 10 seconds
@@ -112,6 +118,7 @@ export function speak(text, interrupt = false, onStart, onEnd) {
   ) return;
 
   const utterance = createUtterance(text);
+  utterance._category = category;
   if (onStart) utterance.onstart = onStart;
   if (onEnd) utterance._onEnd = onEnd;
 
@@ -132,6 +139,9 @@ export function speak(text, interrupt = false, onStart, onEnd) {
       processQueue();
     }
   } else {
+    if (category) {
+      speechQueue = speechQueue.filter(u => u._category !== category);
+    }
     speechQueue.push(utterance);
     processQueue();
   }

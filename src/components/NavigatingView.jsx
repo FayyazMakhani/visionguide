@@ -3,17 +3,22 @@
 // Background is the spec-10 analyzed still frame (lastFrame), NOT the live feed.
 
 import { colors, fonts } from '../theme.js';
+import DetectionOverlay from './DetectionOverlay.jsx';
 
-export default function NavigatingView({ goal, lastSpoken, frame, onStop }) {
+export default function NavigatingView({ goal, lastSpoken, frame, detections, onStop }) {
   return (
     <div style={styles.screen}>
       {/* Background: the exact frame analyzed for the current instruction. */}
       {frame ? (
-        <img
-          src={`data:image/jpeg;base64,${frame}`}
-          alt="Camera frame analyzed for this instruction"
-          style={styles.frame}
-        />
+        <>
+          <img
+            src={`data:image/jpeg;base64,${frame}`}
+            alt="Camera frame analyzed for this instruction"
+            style={styles.frame}
+          />
+          {/* Demo-only: bounding boxes for spec 12's CV detections (13-visionguide-detection-overlay-spec.md) */}
+          <DetectionOverlay detections={detections} />
+        </>
       ) : null}
 
       {/* Readability scrims */}

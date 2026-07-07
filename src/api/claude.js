@@ -81,9 +81,11 @@ export async function callClaude(systemPrompt, messages, signal, model = 'claude
  * @param {string[]} context     - Last 2 navigation_direction strings
  * @param {string} base64Frame   - JPEG base64 string (no data: prefix)
  * @param {string} [scanSummary] - One-line summary of the 4-direction scan results
+ * @param {string} [cvContext]   - On-device CV scene line (spec 12), e.g.
+ *                                 "CV: person center (high risk)"; null when nothing qualifies
  * @returns {object}             - Anthropic user message object
  */
-export function buildUserMessage(goal, context, base64Frame, scanSummary) {
+export function buildUserMessage(goal, context, base64Frame, scanSummary, cvContext) {
   const contextText = context.length > 0
     ? `Prior directions: ${context.join(' → ')}`
     : 'No prior context.';
@@ -93,6 +95,7 @@ export function buildUserMessage(goal, context, base64Frame, scanSummary) {
   const spatialMemoryHint = getSpatialMemoryHint();
 
   const textParts = [
+    cvContext,        // null when no qualifying CV objects — dropped by .filter(Boolean)
     `Goal: ${goal}`,
     contextText,
     scanSummary,

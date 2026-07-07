@@ -234,11 +234,11 @@ Update this file whenever the current phase, active feature, or implementation s
   - `src/modules/speech.js` — `speak()` gained an optional `category` param. A non-interrupt utterance tagged with a category drops any not-yet-started queued utterance of the same category before enqueuing (`speechQueue.filter`), so only the newest pending direction survives — making direction speech last-write-wins like the frame already is. The utterance already handed to `speechSynthesis` (actively playing) is never touched, so it always finishes naturally (no mid-word cutoffs). Utterances with no category (the default) keep the original FIFO behavior unchanged.
   - `src/modules/loop.js` — the three `navigation_direction` `speak()` call sites (scan-win, explore, navigate) pass `category: 'direction'`. Deliberately scoped: hazard/CV alerts (`obstacles.js`/`routeObstacles`, which pass no category and use the `interrupt=true` path for high urgency), rotation warnings, and the "Still scanning"/"Catching up" holdoff cues are all untouched — confirmed CV alerts are unaffected since they never carry a category and so are never filtered by a `'direction'` utterance.
   - Verified `npm run build` and `npm run lint` pass clean; superseding behavior covered by a throwaway Node assertion script (same-category supersede, cross-category isolation, and uncategorized FIFO all asserted — not committed, matching repo precedent).
-  - **Not yet done:** on-device confirmation that the felt lag is gone during fast walking — pending a device test run.
+  - Validated on-device: the felt lag is gone during fast walking — directions no longer voice positions the user has already left.
 
 ## In Progress
 
-- `fix/speech-queue-backlog` — speech-queue supersede fix committed off `develop`; build/lint/node-script verified, on-device confirmation of the latency improvement still pending (see Completed above). Not yet pushed or PR'd.
+- None currently.
 
 ## Recently merged to `develop`
 

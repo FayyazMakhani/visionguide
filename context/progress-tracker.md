@@ -243,6 +243,8 @@ Update this file whenever the current phase, active feature, or implementation s
 ## Recently merged to `develop`
 
 - Spec 12 (on-device CV layer) and spec 13 (demo detection overlay) are both merged into `develop`: spec 13 → `feature/spec-12-cv-implementation` (PR #10), then `feature/spec-12-cv-implementation` → `develop` (PR #11). Both fully verified on-device (AT-CV-01–07, AT-DO-01–07).
+- Speech-queue backlog fix merged into `develop` (PR #12, `fix/speech-queue-backlog`) — navigation directions now supersede a stale not-yet-spoken one instead of piling up in the FIFO queue. Validated on-device: felt lag during fast walking is gone. See the "Stale navigation directions piling up in the speech queue" entry under Completed for root cause and fix detail.
+- All three source branches (`feature/spec-12-cv-implementation`, `feature/spec-13-detection-overlay`, `fix/speech-queue-backlog`) deleted locally post-merge (no remote delete access on this checkout).
 
 ## Next Up
 

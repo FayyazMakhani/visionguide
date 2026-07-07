@@ -229,9 +229,20 @@ Update this file whenever the current phase, active feature, or implementation s
   - Verified `npm run build` and `npm run lint` pass clean.
   - Verified live in-browser with a real camera: AT-DO-01 through AT-DO-07 all passed — a close/centered person gets a red box in sync with hazard alerts; centered furniture gets an amber/orange box; a chair present but off-center/below the confidence threshold correctly gets no box (confirmed this is spec 12's existing `estimateRisk` classification, unchanged by this spec, not a bug — decision made to keep that behavior as-is rather than loosen it for the overlay); boxes stay in sync with the still image across refreshes; alignment holds on a viewport whose aspect ratio differs from the camera's; teardown leaves no stale boxes; screen-reader/accessibility tree is unaffected.
 
+- **Stale navigation directions piling up in the speech queue** (branch `fix/speech-queue-backlog`, off `develop` — not a numbered spec; fixes a UX lag surfaced during on-device testing of the spec 12/13 CV work: walking through a doorway, the app kept voicing "open the door"/"walk through the doorway" for several seconds after the user was already through, even though the on-screen frame had already updated to the current position):
+  - Root cause: two mismatched update policies on the same guidance. The visible frame is last-write-wins — `App.jsx`'s `setLastFrame` always shows the latest capture — but spoken directions go through `speech.js`'s `speechQueue`, a strict FIFO that never drops or supersedes anything queued. Each spoken direction takes longer to say than the ~1s tick interval, so when the user walks faster than utterances drain, directions accumulate and are read out in order, increasingly behind the user's actual position, until the backlog empties. (`STALE_FRAME_MS` doesn't help here: it's checked once when the Claude response arrives, not re-checked when the utterance finally reaches the front of the queue.)
+  - `src/modules/speech.js` — `speak()` gained an optional `category` param. A non-interrupt utterance tagged with a category drops any not-yet-started queued utterance of the same category before enqueuing (`speechQueue.filter`), so only the newest pending direction survives — making direction speech last-write-wins like the frame already is. The utterance already handed to `speechSynthesis` (actively playing) is never touched, so it always finishes naturally (no mid-word cutoffs). Utterances with no category (the default) keep the original FIFO behavior unchanged.
+  - `src/modules/loop.js` — the three `navigation_direction` `speak()` call sites (scan-win, explore, navigate) pass `category: 'direction'`. Deliberately scoped: hazard/CV alerts (`obstacles.js`/`routeObstacles`, which pass no category and use the `interrupt=true` path for high urgency), rotation warnings, and the "Still scanning"/"Catching up" holdoff cues are all untouched — confirmed CV alerts are unaffected since they never carry a category and so are never filtered by a `'direction'` utterance.
+  - Verified `npm run build` and `npm run lint` pass clean; superseding behavior covered by a throwaway Node assertion script (same-category supersede, cross-category isolation, and uncategorized FIFO all asserted — not committed, matching repo precedent).
+  - Validated on-device: the felt lag is gone during fast walking — directions no longer voice positions the user has already left.
+
 ## In Progress
 
-- None currently — spec 12 (`feature/spec-12-cv-implementation`) and spec 13 (`feature/spec-13-detection-overlay`) are both code-complete and fully verified on-device (see Completed above); next step is merging them into `develop` (spec-13 → spec-12-cv-implementation, then spec-12-cv-implementation → develop).
+- None currently.
+
+## Recently merged to `develop`
+
+- Spec 12 (on-device CV layer) and spec 13 (demo detection overlay) are both merged into `develop`: spec 13 → `feature/spec-12-cv-implementation` (PR #10), then `feature/spec-12-cv-implementation` → `develop` (PR #11). Both fully verified on-device (AT-CV-01–07, AT-DO-01–07).
 
 ## Next Up
 

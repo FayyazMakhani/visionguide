@@ -14,6 +14,7 @@ import Onboarding from './components/Onboarding.jsx';
 import NavigatingView from './components/NavigatingView.jsx';
 import ArrivedView from './components/ArrivedView.jsx';
 import { colors, fonts } from './theme.js';
+import logo from './assets/logo.png';
 
 // Voice command, said any time mid-navigation, to reject the current direction/room
 // and resume searching elsewhere — see handleRejectGoal in loop.js.
@@ -354,7 +355,10 @@ export default function App() {
         ) : (
           <div style={styles.content}>
             <div style={styles.header}>
-              <span style={styles.wordmark}>VisionGuide</span>
+              <div style={styles.brand}>
+                <img src={logo} alt="" style={styles.logo} />
+                <span style={styles.wordmark}>VisionGuide</span>
+              </div>
               <span style={styles.readyPill}>
                 <span style={styles.readyDot} aria-hidden="true" />
                 Ready
@@ -412,6 +416,17 @@ const styles = {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
+  },
+  brand: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+  },
+  logo: {
+    width: '24px',
+    height: '24px',
+    borderRadius: '50%',
+    objectFit: 'cover',
   },
   wordmark: {
     font: `800 17px/1 ${fonts.display}`,

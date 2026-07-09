@@ -253,6 +253,7 @@ Update this file whenever the current phase, active feature, or implementation s
 - Spec 12 (on-device CV layer) and spec 13 (demo detection overlay) are both merged into `develop`: spec 13 → `feature/spec-12-cv-implementation` (PR #10), then `feature/spec-12-cv-implementation` → `develop` (PR #11). Both fully verified on-device (AT-CV-01–07, AT-DO-01–07).
 - Speech-queue backlog fix merged into `develop` (PR #12, `fix/speech-queue-backlog`) — navigation directions now supersede a stale not-yet-spoken one instead of piling up in the FIFO queue. Validated on-device: felt lag during fast walking is gone. See the "Stale navigation directions piling up in the speech queue" entry under Completed for root cause and fix detail.
 - All three source branches (`feature/spec-12-cv-implementation`, `feature/spec-13-detection-overlay`, `fix/speech-queue-backlog`) deleted locally post-merge (no remote delete access on this checkout).
+- Furniture hazard priority merged into `develop` (PR #13, `feature/furniture-hazard-priority`) — close, centered chairs/tables now escalate to high-risk interrupting alerts via a furniture-specific confidence floor (`CV_FURNITURE_CONFIDENCE_MIN`) plus a bottom-edge proximity term. The diagnostic finding (real blocker was the global 0.7 risk floor, not the detector) is in the Completed entry above. Local branch deleted post-merge; the superpowers spec/plan for this work were kept local (untracked), out of the PR by preference.
 
 ## Next Up
 

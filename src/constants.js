@@ -47,7 +47,9 @@ export const SPATIAL_MEMORY_MS          = 120_000; // how long a blocked-heading
 
 // --- On-device CV layer (12-visionguide-computer-vision-spec.md) ---
 export const CV_CONFIDENCE_THRESHOLD = 0.5;    // MediaPipe detector init threshold
-export const CV_RISK_CONFIDENCE_MIN  = 0.7;    // minimum confidence for alert or context inclusion
+export const CV_RISK_CONFIDENCE_MIN  = 0.7;    // minimum confidence for alert or context inclusion (person)
+export const CV_FURNITURE_CONFIDENCE_MIN = 0.55; // lower floor for furniture — the detector scores chairs/tables well below people, so the 0.7 person floor was discarding every chair
+export const CV_BOTTOM_PROXIMITY_THRESHOLD = 0.9; // furniture whose box reaches the bottom 10% of the frame is underfoot-close, even if its visible height is small (slipped low / clipped)
 export const CV_PROXIMITY_THRESHOLD  = 0.35;   // bounding box height above which object is "close"
 export const CV_ALERT_COOLDOWN_MS    = 3000;   // per-class cooldown between hazard audio alerts
 export const CV_CONTEXT_STALENESS_MS = 1000;   // max snapshot age for Claude context or hazard eval

@@ -40,6 +40,8 @@ model:
 - `src/modules/loop.js` — start/stop CV with the navigation loop; pass CV context to Claude
 - `src/App.jsx` — pass video element ref to `startLoop()` so cvDetector can be initialized
 - `package.json` — add `@mediapipe/tasks-vision`
+- `src/modules/obstacles.js` — `formatObstacleAlert()` renders direction `"ahead"` as
+  "<Type> ahead" (CV alerts map position `center` → `ahead`; Claude obstacles are unaffected)
 
 ### Explicitly out of scope
 

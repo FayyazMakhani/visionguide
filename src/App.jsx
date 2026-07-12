@@ -14,6 +14,7 @@ import Onboarding from './components/Onboarding.jsx';
 import NavigatingView from './components/NavigatingView.jsx';
 import ArrivedView from './components/ArrivedView.jsx';
 import { colors, fonts } from './theme.js';
+import logo from './assets/logo.png';
 
 // Voice command, said any time mid-navigation, to reject the current direction/room
 // and resume searching elsewhere — see handleRejectGoal in loop.js.
@@ -56,6 +57,7 @@ export default function App() {
   const [lastSpoken, setLastSpoken] = useState('');
   const [context, setContext] = useState([]);
   const [lastFrame, setLastFrame] = useState(null);
+  const [lastDetections, setLastDetections] = useState([]); // spec 13: demo bounding-box overlay data
   // Shown on every mount — the dismiss tap is the user gesture mobile
   // browsers require before they'll allow speechSynthesis/recognition to run.
   const [showOnboarding, setShowOnboarding] = useState(true);
@@ -79,13 +81,15 @@ export default function App() {
     setLastSpoken(text);
   }, []);
 
-  const handleContextUpdate = useCallback((direction, frame) => {
+  const handleContextUpdate = useCallback((direction, frame, detections) => {
     setContext(prev => [...prev.slice(-1), direction]); // Keep last 2
     setLastFrame(frame);
+    setLastDetections(detections);
   }, []);
 
-  const handleFrameCaptured = useCallback((frame) => {
+  const handleFrameCaptured = useCallback((frame, detections) => {
     setLastFrame(frame);
+    setLastDetections(detections);
   }, []);
 
   const handleError = useCallback((errorMsg) => {
@@ -154,6 +158,7 @@ export default function App() {
       setStatus('navigating');
       setContext([]);
       setLastFrame(null);
+      setLastDetections([]);
       // Most common demo failure is holding the phone at the wrong angle — say so before the loop starts
       speak('Hold your phone at chest height, pointing forward.');
       startTimeoutRef.current = setTimeout(() => {
@@ -297,6 +302,7 @@ export default function App() {
     setStatus('idle');
     setLastSpoken('');
     setLastFrame(null);
+    setLastDetections([]);
   }, [teardownMedia]);
 
   // --- Arrived → start a fresh destination (back to the Set-destination screen) ---
@@ -305,6 +311,7 @@ export default function App() {
     setGoal('');
     setLastSpoken('');
     setLastFrame(null);
+    setLastDetections([]);
   }, []);
 
   // --- Cleanup on unmount ---
@@ -340,6 +347,7 @@ export default function App() {
             goal={goal}
             lastSpoken={lastSpoken}
             frame={lastFrame}
+            detections={lastDetections}
             onStop={handleStop}
           />
         ) : status === 'arrived' ? (
@@ -347,7 +355,10 @@ export default function App() {
         ) : (
           <div style={styles.content}>
             <div style={styles.header}>
-              <span style={styles.wordmark}>VisionGuide</span>
+              <div style={styles.brand}>
+                <img src={logo} alt="" style={styles.logo} />
+                <span style={styles.wordmark}>VisionGuide</span>
+              </div>
               <span style={styles.readyPill}>
                 <span style={styles.readyDot} aria-hidden="true" />
                 Ready
@@ -405,6 +416,17 @@ const styles = {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
+  },
+  brand: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+  },
+  logo: {
+    width: '24px',
+    height: '24px',
+    borderRadius: '50%',
+    objectFit: 'cover',
   },
   wordmark: {
     font: `800 17px/1 ${fonts.display}`,

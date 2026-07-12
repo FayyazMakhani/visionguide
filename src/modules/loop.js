@@ -19,6 +19,9 @@ import {
   hasGyroData,
 } from './gyroscope.js';
 import * as guidedScan from './guidedScan.js';
+import * as cvDetector from './cvDetector.js';
+import * as hazardEvaluator from './hazardEvaluator.js';
+import * as cvContextBuilder from './cvContextBuilder.js';
 import {
   LOOP_INTERVAL_MS,
   API_TIMEOUT_MS,
@@ -68,6 +71,9 @@ let scanSummary = '';
  * goal is found. SCAN_TIMEOUT_MS is an overall safety net in case a leg's
  * turn-detection never resolves.
  *
+ * Also starts the on-device CV layer (cvDetector fast loop + hazardEvaluator
+ * medium loop — spec 12); CV init failure is non-fatal.
+ *
  * @param {HTMLVideoElement} videoEl      - Live camera feed element
  * @param {React.MutableRefObject} streamRef - Ref to the active MediaStream (updatable on frozen-frame reinit)
  * @param {React.MutableRefObject} stateRef - Ref containing { goal: string, context: string[] }
@@ -75,12 +81,14 @@ let scanSummary = '';
  *                                           fresh values without needing to restart the loop.
  * @param {object} callbacks
  * @param {function} callbacks.onSpeak          - Called with spoken text string (updates StatusDisplay)
- * @param {function} callbacks.onContextUpdate  - Called with (navigation_direction, frame) on a spoken direction
- * @param {function} callbacks.onFrameCaptured  - Called with the captured frame after each scan-phase leg
+ * @param {function} callbacks.onContextUpdate  - Called with (navigation_direction, frame, detections) on a spoken direction
+ * @param {function} callbacks.onFrameCaptured  - Called with (frame, detections) after each scan-phase leg
  *                                           (win or lose), and additionally on every captured frame during
  *                                           explore/navigate phases (regardless of whether that frame's
  *                                           analysis is later accepted, stale, or turned-away) so the
  *                                           on-screen preview never freezes while guidance is withheld.
+ *                                           detections (spec 13) is cvContextBuilder.getQualifyingObjects()
+ *                                           read at the same instant as frame, for the demo bounding-box overlay.
  * @param {function} callbacks.onArrival        - Called when goal is confirmed reached
  * @param {function} callbacks.onGiveUp         - Called when explore phase times out without finding the goal
  * @param {function} callbacks.onError          - Called with error string on API failure
@@ -99,6 +107,13 @@ export function startLoop(videoEl, streamRef, stateRef, callbacks) {
   resetSessionHeading();
   phase = 'scan';
   guidedScan.resetGuidedScan();
+
+  // On-device CV layer (spec 12): fast detector loop + medium hazard loop run
+  // for the whole session. Init failure (e.g. model fetch) must never block
+  // navigation — CV augments Claude vision, it doesn't gate it.
+  cvDetector.init(videoEl).catch(err => console.warn('CV detector unavailable:', err.message));
+  cvDetector.start();
+  hazardEvaluator.start();
 
   async function tick() {
     // Guard: skip if prior call is still in flight
@@ -129,6 +144,11 @@ export function startLoop(videoEl, streamRef, stateRef, callbacks) {
     const frame = getFrame(videoEl);
     if (!frame) return; // Video not ready yet
 
+    // Demo bounding-box overlay data (spec 13) — read at the same instant as
+    // frame so the two are always time-locked, regardless of how long this
+    // tick's Claude call takes.
+    const detections = cvContextBuilder.getQualifyingObjects();
+
     // Frozen frame detection — camera stream stuck on the same frame
     if (checkFrozenFrame(frame)) {
       console.warn('Frozen frame detected — reinitializing stream');
@@ -153,7 +173,7 @@ export function startLoop(videoEl, streamRef, stateRef, callbacks) {
     // preview freezes on the last *accepted* frame while the camera (and user)
     // keeps moving. Scan phase keeps its own per-leg call (tied to the analyzed
     // frame), so it's excluded here to avoid a redundant/conflicting update.
-    if (phase !== 'scan') callbacks.onFrameCaptured(frame);
+    if (phase !== 'scan') callbacks.onFrameCaptured(frame, detections);
 
     pending = true;
     abortController = new AbortController();
@@ -179,7 +199,7 @@ export function startLoop(videoEl, streamRef, stateRef, callbacks) {
         buildSystemPrompt('navigation');
 
       const model = phase === 'navigate' ? NAVIGATE_MODEL : SCAN_MODEL;
-      const result = await callClaude(systemPrompt, [buildUserMessage(goal, context, frame, scanSummary)], abortController.signal, model);
+      const result = await callClaude(systemPrompt, [buildUserMessage(goal, context, frame, scanSummary, cvContextBuilder.build())], abortController.signal, model);
 
       clearTimeout(silenceTimer);
 
@@ -211,14 +231,14 @@ export function startLoop(videoEl, streamRef, stateRef, callbacks) {
           clearInterval(intervalId);
           intervalId = setInterval(tick, LOOP_INTERVAL_MS);
 
-          speak(result.navigation_direction, false, () => callbacks.onSpeak(result.navigation_direction));
-          callbacks.onContextUpdate(result.navigation_direction, frame);
+          speak(result.navigation_direction, false, () => callbacks.onSpeak(result.navigation_direction), null, 'direction');
+          callbacks.onContextUpdate(result.navigation_direction, frame, detections);
           return;
         }
 
         if (phase === 'scan') {
           guidedScan.recordLegResult(isStale ? { obstacles: result.obstacles } : result);
-          callbacks.onFrameCaptured(frame);
+          callbacks.onFrameCaptured(frame, detections);
 
           if (guidedScan.hasMoreLegs()) {
             guidedScan.beginNextLegTurn();
@@ -243,8 +263,8 @@ export function startLoop(videoEl, streamRef, stateRef, callbacks) {
           }
           consecutivePathBlocked = 0;
           const direction = result.navigation_direction || "I don't see a clear path. Try turning left or right.";
-          speak(direction, false, () => callbacks.onSpeak(direction));
-          callbacks.onContextUpdate(direction, frame);
+          speak(direction, false, () => callbacks.onSpeak(direction), null, 'direction');
+          callbacks.onContextUpdate(direction, frame, detections);
         } else {
           maybeSpeakDropNotice();
         }
@@ -294,8 +314,8 @@ export function startLoop(videoEl, streamRef, stateRef, callbacks) {
 
       // Speak navigation direction
       if (result.navigation_direction) {
-        speak(result.navigation_direction, false, () => callbacks.onSpeak(result.navigation_direction));
-        callbacks.onContextUpdate(result.navigation_direction, frame);
+        speak(result.navigation_direction, false, () => callbacks.onSpeak(result.navigation_direction), null, 'direction');
+        callbacks.onContextUpdate(result.navigation_direction, frame, detections);
         extractLandmarks(result.navigation_direction);
       }
 
@@ -479,8 +499,11 @@ export function startLoop(videoEl, streamRef, stateRef, callbacks) {
 /**
  * Stop the navigation loop. Safe to call if loop is not running.
  * Resets phase to 'scan' so the next Start always begins there.
+ * Also stops the on-device CV layer (cvDetector + hazardEvaluator).
  */
 export function stopLoop() {
+  cvDetector.stop();
+  hazardEvaluator.stop();
   if (abortController !== null) {
     abortController.abort();
     abortController = null;

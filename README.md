@@ -32,6 +32,13 @@ The experience is designed to be simple and hands-free: the user can start a ses
 - Anthropic Claude API for destination extraction and navigation reasoning
 - ESLint and Vite build tooling
 
+## Supported platforms
+
+- iOS Safari 16+ / Chrome on iOS 16+ (WebKit)
+- Chrome 120+ on Android 10+
+
+Requires a device with a rear camera and microphone, served over HTTPS (the camera and speech APIs require a secure context).
+
 ## Repository structure
 
 - src/App.jsx — main app state and navigation flow

@@ -718,7 +718,7 @@
     </table>
 
     <h3>Post-MVP goals (not in scope)</h3>
-    <p>Multi-floor navigation, persistent landmark memory across sessions, personalized user profiles, iOS support, and offline operation are explicitly deferred.</p>
+    <p>Multi-floor navigation, persistent landmark memory across sessions, personalized user profiles, and offline operation are explicitly deferred. (iOS support was initially deferred but later adopted - see NFR-08 and OQ-08.)</p>
   </section>
 
   <!-- S5: Functional Requirements -->
@@ -1163,7 +1163,6 @@
     <table>
       <thead><tr><th>Feature</th><th>Reason deferred</th></tr></thead>
       <tbody>
-        <tr><td>iOS / Safari support</td><td>Web Speech API and camera constraints on iOS Safari are unreliable; not worth the debugging time in 4 weeks</td></tr>
         <tr><td>Multi-floor navigation</td><td>Requires floor context persistence and elevator/stair tracking logic beyond MVP scope</td></tr>
         <tr><td>Pre-mapped floor plans</td><td>Requires building-specific data pipeline and storage infrastructure</td></tr>
         <tr><td>Bluetooth / NFC beacons</td><td>Requires physical hardware deployment; contradicts zero-infrastructure principle</td></tr>

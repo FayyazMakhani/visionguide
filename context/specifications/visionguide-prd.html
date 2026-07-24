@@ -850,9 +850,8 @@
       <div class="req-body">
         When <code>goal_found: true</code> is returned with <code>goal_confidence &ge; 0.8</code> in two consecutive frames, the app must speak "You have arrived at [goal]" and stop the navigation loop.
         <ul>
-          <li>Two-frame confirmation required to prevent false positives</li>
+          <li>Two-frame confirmation required to prevent false positives — an unbroken streak of two qualifying frames; any frame that fails either condition resets the counter</li>
           <li>Loop must fully stop — no further API calls after arrival</li>
-          <li>Fast-path exception: if <code>goal_confidence &ge; 0.95</code> on the first qualifying frame, arrival is confirmed immediately without waiting for a second frame — each frame costs a full API round trip, so this halves worst-case arrival-announcement latency for the common, unambiguous case while leaving the two-frame guard in place for lower-confidence reads</li>
         </ul>
       </div>
     </div>
@@ -1190,7 +1189,7 @@
     <p>VisionGuide is a two-layer system: a browser client and the Anthropic Claude Vision API. The browser calls Anthropic directly using a key stored in a <code>.env</code> file. There is no proxy, no server, and no deployment infrastructure beyond static file hosting.</p>
 
     <div class="diagram-wrap">
-      <svg width="100%" viewBox="0 0 760 500" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="VisionGuide system architecture showing browser, Vercel proxy, and Claude API layers">
+      <svg width="100%" viewBox="0 0 760 460" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="VisionGuide system architecture: browser layer containing camera, canvas, React app, on-device MediaPipe CV, and Web Speech, calling the Anthropic Claude Vision API directly. The camera stream feeds both the 1 fps canvas-to-Claude path and the parallel ~15 fps on-device CV layer, which feeds hazard audio and CV context back into the React app.">
         <defs>
           <marker id="arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
             <path d="M2 1L8 5L2 9" fill="none" stroke="#888" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
@@ -1198,64 +1197,81 @@
           <marker id="arr-acc" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
             <path d="M2 1L8 5L2 9" fill="none" stroke="#1a4fd6" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
           </marker>
+          <marker id="arr-cv" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M2 1L8 5L2 9" fill="none" stroke="#1a6640" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </marker>
         </defs>
 
         <!-- Layer 1: Browser -->
-        <rect x="20" y="10" width="720" height="170" rx="10" fill="#f7f6f2" stroke="#d8d5ce" stroke-width="1" stroke-dasharray="5 3"/>
-        <text x="36" y="30" font-family="system-ui,sans-serif" font-size="11" fill="#777" font-weight="600" letter-spacing="1">BROWSER — CHROME ON ANDROID</text>
+        <rect x="20" y="10" width="720" height="270" rx="10" fill="#f7f6f2" stroke="#d8d5ce" stroke-width="1" stroke-dasharray="5 3"/>
+        <text x="36" y="30" font-family="system-ui,sans-serif" font-size="11" fill="#777" font-weight="600" letter-spacing="1">BROWSER — CHROME (ANDROID / iOS)</text>
 
         <!-- Camera box -->
-        <rect x="40" y="44" width="130" height="120" rx="8" fill="#e8edfb" stroke="#1a4fd6" stroke-width="1"/>
-        <text x="105" y="97" font-family="system-ui,sans-serif" font-size="13" fill="#1a4fd6" font-weight="600" text-anchor="middle">Camera</text>
-        <text x="105" y="115" font-family="system-ui,sans-serif" font-size="11" fill="#444" text-anchor="middle">getUserMedia</text>
-        <text x="105" y="132" font-family="system-ui,sans-serif" font-size="11" fill="#444" text-anchor="middle">1 fps capture</text>
+        <rect x="40" y="44" width="130" height="100" rx="8" fill="#e8edfb" stroke="#1a4fd6" stroke-width="1"/>
+        <text x="105" y="86" font-family="system-ui,sans-serif" font-size="13" fill="#1a4fd6" font-weight="600" text-anchor="middle">Camera</text>
+        <text x="105" y="104" font-family="system-ui,sans-serif" font-size="11" fill="#444" text-anchor="middle">getUserMedia</text>
+        <text x="105" y="121" font-family="system-ui,sans-serif" font-size="11" fill="#444" text-anchor="middle">shared stream</text>
 
         <!-- Canvas box -->
-        <rect x="210" y="44" width="130" height="120" rx="8" fill="#eceae4" stroke="#aaa" stroke-width="1"/>
-        <text x="275" y="97" font-family="system-ui,sans-serif" font-size="13" fill="#333" font-weight="600" text-anchor="middle">Canvas</text>
-        <text x="275" y="115" font-family="system-ui,sans-serif" font-size="11" fill="#444" text-anchor="middle">toDataURL JPEG</text>
-        <text x="275" y="132" font-family="system-ui,sans-serif" font-size="11" fill="#444" text-anchor="middle">640×480 @ 70%</text>
+        <rect x="210" y="44" width="130" height="100" rx="8" fill="#eceae4" stroke="#aaa" stroke-width="1"/>
+        <text x="275" y="86" font-family="system-ui,sans-serif" font-size="13" fill="#333" font-weight="600" text-anchor="middle">Canvas</text>
+        <text x="275" y="104" font-family="system-ui,sans-serif" font-size="11" fill="#444" text-anchor="middle">toDataURL JPEG</text>
+        <text x="275" y="121" font-family="system-ui,sans-serif" font-size="11" fill="#444" text-anchor="middle">640×480 @ 70%</text>
 
         <!-- App state box -->
-        <rect x="380" y="44" width="150" height="120" rx="8" fill="#f0ebfb" stroke="#7a3fbf" stroke-width="1"/>
-        <text x="455" y="90" font-family="system-ui,sans-serif" font-size="13" fill="#5a2a9f" font-weight="600" text-anchor="middle">React App</text>
-        <text x="455" y="108" font-family="system-ui,sans-serif" font-size="11" fill="#444" text-anchor="middle">goal, context</text>
-        <text x="455" y="124" font-family="system-ui,sans-serif" font-size="11" fill="#444" text-anchor="middle">pending flag</text>
-        <text x="455" y="140" font-family="system-ui,sans-serif" font-size="11" fill="#444" text-anchor="middle">speech queue</text>
+        <rect x="380" y="44" width="150" height="100" rx="8" fill="#f0ebfb" stroke="#7a3fbf" stroke-width="1"/>
+        <text x="455" y="80" font-family="system-ui,sans-serif" font-size="13" fill="#5a2a9f" font-weight="600" text-anchor="middle">React App</text>
+        <text x="455" y="98" font-family="system-ui,sans-serif" font-size="11" fill="#444" text-anchor="middle">goal, context</text>
+        <text x="455" y="114" font-family="system-ui,sans-serif" font-size="11" fill="#444" text-anchor="middle">pending flag</text>
+        <text x="455" y="130" font-family="system-ui,sans-serif" font-size="11" fill="#444" text-anchor="middle">speech queue</text>
 
         <!-- TTS box -->
-        <rect x="575" y="44" width="140" height="120" rx="8" fill="#e8edfb" stroke="#1a4fd6" stroke-width="1"/>
-        <text x="645" y="97" font-family="system-ui,sans-serif" font-size="13" fill="#1a4fd6" font-weight="600" text-anchor="middle">Web Speech</text>
-        <text x="645" y="115" font-family="system-ui,sans-serif" font-size="11" fill="#444" text-anchor="middle">speechSynthesis</text>
-        <text x="645" y="132" font-family="system-ui,sans-serif" font-size="11" fill="#444" text-anchor="middle">interrupt / queue</text>
+        <rect x="575" y="44" width="140" height="100" rx="8" fill="#e8edfb" stroke="#1a4fd6" stroke-width="1"/>
+        <text x="645" y="86" font-family="system-ui,sans-serif" font-size="13" fill="#1a4fd6" font-weight="600" text-anchor="middle">Web Speech</text>
+        <text x="645" y="104" font-family="system-ui,sans-serif" font-size="11" fill="#444" text-anchor="middle">speechSynthesis</text>
+        <text x="645" y="121" font-family="system-ui,sans-serif" font-size="11" fill="#444" text-anchor="middle">interrupt / queue</text>
 
-        <!-- Browser arrows -->
-        <line x1="170" y1="104" x2="208" y2="104" stroke="#888" stroke-width="1.5" marker-end="url(#arr)"/>
-        <line x1="340" y1="104" x2="378" y2="104" stroke="#888" stroke-width="1.5" marker-end="url(#arr)"/>
-        <line x1="530" y1="104" x2="573" y2="104" stroke="#888" stroke-width="1.5" marker-end="url(#arr)"/>
+        <!-- Row 1 arrows -->
+        <line x1="170" y1="94" x2="208" y2="94" stroke="#888" stroke-width="1.5" marker-end="url(#arr)"/>
+        <text x="189" y="86" font-family="system-ui,sans-serif" font-size="10" fill="#777" text-anchor="middle">1 fps</text>
+        <line x1="340" y1="94" x2="378" y2="94" stroke="#888" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="530" y1="94" x2="573" y2="94" stroke="#888" stroke-width="1.5" marker-end="url(#arr)"/>
+
+        <!-- On-device CV box (Spec 12) -->
+        <rect x="40" y="176" width="340" height="78" rx="8" fill="#eaf4ee" stroke="#1a6640" stroke-width="1"/>
+        <text x="210" y="202" font-family="system-ui,sans-serif" font-size="13" fill="#1a6640" font-weight="600" text-anchor="middle">On-device CV — MediaPipe</text>
+        <text x="210" y="221" font-family="system-ui,sans-serif" font-size="11" fill="#444" text-anchor="middle">EfficientDet-Lite0 · detect → track → world model</text>
+        <text x="210" y="238" font-family="system-ui,sans-serif" font-size="11" fill="#444" text-anchor="middle">~15 fps · shares camera stream · Spec 12</text>
+
+        <!-- Camera feeds CV -->
+        <line x1="105" y1="144" x2="105" y2="174" stroke="#1a6640" stroke-width="1.5" marker-end="url(#arr-cv)"/>
+        <text x="112" y="166" font-family="system-ui,sans-serif" font-size="10" fill="#1a6640" text-anchor="start">~15 fps</text>
+
+        <!-- CV feeds React App (hazard audio + prompt context) -->
+        <line x1="380" y1="215" x2="420" y2="215" stroke="#1a6640" stroke-width="1.5"/>
+        <line x1="420" y1="215" x2="420" y2="146" stroke="#1a6640" stroke-width="1.5" marker-end="url(#arr-cv)"/>
+        <text x="376" y="170" font-family="system-ui,sans-serif" font-size="10" fill="#1a6640" text-anchor="end">hazards + context →</text>
 
         <!-- Layer 2: Anthropic -->
-        <rect x="20" y="210" width="720" height="100" rx="10" fill="#f7f6f2" stroke="#d8d5ce" stroke-width="1" stroke-dasharray="5 3"/>
-        <text x="36" y="230" font-family="system-ui,sans-serif" font-size="11" fill="#777" font-weight="600" letter-spacing="1">ANTHROPIC API</text>
+        <rect x="20" y="300" width="720" height="100" rx="10" fill="#f7f6f2" stroke="#d8d5ce" stroke-width="1" stroke-dasharray="5 3"/>
+        <text x="36" y="320" font-family="system-ui,sans-serif" font-size="11" fill="#777" font-weight="600" letter-spacing="1">ANTHROPIC API</text>
 
-        <rect x="210" y="244" width="340" height="55" rx="8" fill="#fdeee8" stroke="#b84c00" stroke-width="1"/>
-        <text x="380" y="266" font-family="system-ui,sans-serif" font-size="13" fill="#b84c00" font-weight="600" text-anchor="middle">Claude Vision (claude-sonnet-4-6)</text>
-        <text x="380" y="285" font-family="system-ui,sans-serif" font-size="11" fill="#444" text-anchor="middle">Scene analysis · OCR · Direction generation</text>
+        <rect x="210" y="332" width="340" height="52" rx="8" fill="#fdeee8" stroke="#b84c00" stroke-width="1"/>
+        <text x="380" y="356" font-family="system-ui,sans-serif" font-size="13" fill="#b84c00" font-weight="600" text-anchor="middle">Claude Vision (Sonnet + Haiku)</text>
+        <text x="380" y="374" font-family="system-ui,sans-serif" font-size="11" fill="#444" text-anchor="middle">Scene analysis · OCR · Direction generation</text>
 
-        <!-- App to Claude direct -->
-        <line x1="455" y1="164" x2="455" y2="200" stroke="#888" stroke-width="1.5"/>
-        <line x1="455" y1="200" x2="382" y2="200" stroke="#888" stroke-width="1.5"/>
-        <line x1="382" y1="200" x2="382" y2="242" stroke="#888" stroke-width="1.5" marker-end="url(#arr)"/>
-        <text x="430" y="196" font-family="system-ui,sans-serif" font-size="10" fill="#777" text-anchor="middle">POST — VITE_ANTHROPIC_API_KEY in header</text>
+        <!-- React App to Claude (POST) -->
+        <line x1="470" y1="144" x2="470" y2="330" stroke="#888" stroke-width="1.5" marker-end="url(#arr)"/>
+        <text x="462" y="270" font-family="system-ui,sans-serif" font-size="10" fill="#777" text-anchor="end">POST — key in header</text>
 
-        <!-- Claude to app (dashed return) -->
-        <line x1="378" y1="242" x2="378" y2="202" stroke="#1a4fd6" stroke-width="1" stroke-dasharray="4 2" marker-end="url(#arr-acc)"/>
-        <text x="340" y="228" font-family="system-ui,sans-serif" font-size="10" fill="#1a4fd6" text-anchor="middle">JSON</text>
+        <!-- Claude to React App (dashed JSON return) -->
+        <line x1="510" y1="330" x2="510" y2="146" stroke="#1a4fd6" stroke-width="1" stroke-dasharray="4 2" marker-end="url(#arr-acc)"/>
+        <text x="518" y="270" font-family="system-ui,sans-serif" font-size="10" fill="#1a4fd6" text-anchor="start">JSON</text>
 
         <!-- hosting note -->
-        <text x="380" y="336" font-family="system-ui,sans-serif" font-size="11" fill="#aaa" text-anchor="middle">Static files served from Vercel or any CDN. No serverless functions. API key in .env, never committed to git.</text>
+        <text x="380" y="424" font-family="system-ui,sans-serif" font-size="11" fill="#aaa" text-anchor="middle">Static files served from Vercel or any CDN. No serverless functions. API key in .env, never committed to git.</text>
       </svg>
-      <div class="diagram-caption">Figure 1 — System architecture: two layers, browser calls Anthropic directly</div>
+      <div class="diagram-caption">Figure 1 — System architecture: the browser layer (camera, canvas, React app, parallel on-device MediaPipe CV, Web Speech) calls Anthropic directly. The camera stream feeds both the 1 fps Claude path and the ~15 fps on-device CV layer (Spec 12).</div>
     </div>
   </section>
 
@@ -1268,41 +1284,61 @@
 
     <h3>Claude Vision prompt (system)</h3>
     <div class="code-block">
-<span class="comment">// System prompt — sent with every request</span>
+<span class="comment">// System prompt — navigation phase. Source of truth: src/prompts/system.js
+// (buildSystemPrompt). Scan, explore, guided-scan, and destination-extraction
+// each use their own phase prompt in the same file. This shows the navigate
+// schema and core rules, abbreviated.</span>
 <span class="str">You are an indoor navigation assistant for visually impaired users.
-Analyze the image and return ONLY valid JSON. No preamble, no markdown.
-Structure:
+Analyze the image and return ONLY valid JSON. No preamble, no markdown, no explanation.
+
+JSON structure:
 {
   "obstacles": [
     {
-      "type": string,       // e.g. "chair", "step", "door"
-      "direction": string,  // e.g. "left", "center", "right"
+      "type": string,
+      "direction": string,  // "left" | "center" | "right"
       "urgency": "high" | "medium" | "low"
     }
   ],
-  "navigation_direction": string,  // max 15 words, action-oriented
+  "navigation_direction": string,  // max 8-10 words; null when path_blocked
+  "path_blocked": boolean,
   "goal_found": boolean,
   "goal_confidence": number        // 0.0 to 1.0
 }
+// Phase-specific additions: explore adds "small_space": boolean; guided-scan adds
+// "path_openness": number (0.0-1.0); describe mode (deferred, S16) adds "scene_description".
 
-Rules:
-- Use direction words: left, right, ahead, behind. Never compass directions.
-- navigation_direction must be actionable: "Move forward", "Turn left at the door".
-- obstacle urgency=high only if within 1 metre and on the user path.
-- If goal is not visible, goal_found=false, goal_confidence=0.
-- Do NOT include scene descriptions or commentary. Navigation output only.
-- Return valid JSON only. Nothing else.</span>
+Rules (abbreviated — see src/prompts/system.js for the authoritative full text):
+- navigation_direction: max 8-10 words, action-oriented, naming a specific visible landmark.
+- Spatial words only: left, right, ahead. Never "behind" or "turn around" (the camera sees
+  forward only, so there is no evidence of what is behind the user). Never compass directions.
+- Left/right are the camera-holder's perspective; locate the object in the frame first (left
+  half of the image = user's left). The image is not mirrored — do not swap sides.
+- path_blocked=true for a wall, dead end, or enclosed space with no passable gap; then
+  navigation_direction MUST be null. Never invent a path over a wall or through a closed,
+  unmarked door.
+- urgency=high: stationary object directly blocking the path within 1 metre only. Passing
+  people are urgency=medium at most.
+- goal_found=true only when the destination is immediately at hand (reachable), not when a
+  matching sign is merely legible from down a hallway.
+- Do NOT include scene descriptions or commentary. Return valid JSON only. Nothing else.</span>
     </div>
 
     <h3>Claude Vision prompt (user message)</h3>
     <div class="code-block">
-<span class="comment">// User message — assembled per frame</span>
+<span class="comment">// User message — assembled per frame by buildUserMessage (src/api/claude.js).
+// Optional lines are included only when present, then joined with newlines.</span>
 {
   <span class="key">"role"</span>: <span class="str">"user"</span>,
   <span class="key">"content"</span>: [
     {
       <span class="key">"type"</span>: <span class="str">"text"</span>,
-      <span class="key">"text"</span>: <span class="str">"Goal: {userGoal}\nPrior context: {lastTwoDirections}\nAnalyze this frame."</span>
+      <span class="key">"text"</span>: <span class="str">"CV: person center (high risk)\n"</span>   <span class="comment">// optional — CV snapshot, S17 / FR-CV-03</span>
+              <span class="str">"Goal: {userGoal}\n"</span>
+              <span class="str">"Prior directions: {lastTwoDirections}\n"</span>
+              <span class="str">"{scanSummary}\n"</span>              <span class="comment">// optional — one-line 4-direction scan result</span>
+              <span class="str">"{landmark + goal-memory + spatial-memory hints}\n"</span>  <span class="comment">// optional — FR-NAV-05</span>
+              <span class="str">"Analyze this frame."</span>
     },
     {
       <span class="key">"type"</span>: <span class="str">"image"</span>,
@@ -1326,9 +1362,10 @@ Rules:
     <span class="str">"content-type"</span>: <span class="str">"application/json"</span>
   },
   <span class="key">body</span>: JSON.stringify({
-    <span class="key">model</span>: <span class="str">"claude-sonnet-4-6"</span>,
-    <span class="key">max_tokens</span>: <span class="num">300</span>,
-    <span class="key">system</span>: buildSystemPrompt(<span class="str">'navigation'</span>),
+    <span class="key">model</span>,            <span class="comment">// NAVIGATE_MODEL (claude-haiku-4-5) in navigate phase;</span>
+                      <span class="comment">// SCAN_MODEL (claude-sonnet-4-6) in scan/explore</span>
+    <span class="key">max_tokens</span>: <span class="num">500</span>,  <span class="comment">// 300 truncates multi-obstacle JSON mid-stream (R-01)</span>
+    <span class="key">system</span>: [{ <span class="key">type</span>: <span class="str">"text"</span>, <span class="key">text</span>: systemPrompt, <span class="key">cache_control</span>: { <span class="key">type</span>: <span class="str">"ephemeral"</span> } }],
     <span class="key">messages</span>: [buildUserMessage(goal, context, frame)]
   })
 });
@@ -1349,6 +1386,7 @@ Rules:
     }
   ],
   <span class="key">"navigation_direction"</span>: <span class="str">"Move forward through the open door ahead."</span>,
+  <span class="key">"path_blocked"</span>: <span class="kw">false</span>,
   <span class="key">"goal_found"</span>: <span class="kw">false</span>,
   <span class="key">"goal_confidence"</span>: <span class="num">0.1</span>
 }</div>
@@ -1365,7 +1403,7 @@ Rules:
     <p>Initializes <code>getUserMedia</code>, renders stream to <code>&lt;video&gt;</code>, requests WakeLock. Exposes <code>getFrame(): string</code> which draws to canvas and returns base64 JPEG.</p>
 
     <h3>NavigationLoop</h3>
-    <p>Owns the <code>setInterval</code> and the <code>scan → explore → navigate</code> phase state machine (FR-SCAN-01–06). Phase determines the capture interval (500ms scan, 1000ms explore/navigate), which prompt is sent, whether gyroscope gating applies (scan only), and the confidence threshold for transitioning toward the destination. During scan phase, frame capture is additionally gated by GuidedScan's per-stop turn/settle staging — no frame is captured until a stop's turn is complete and the brief settle dwell has elapsed. Checks <code>pending</code> flag before calling. Calls <code>CameraStream.getFrame()</code>, assembles payload, POSTs directly to <code>https://api.anthropic.com/v1/messages</code> with the key from <code>import.meta.env.VITE_ANTHROPIC_API_KEY</code>, sets <code>pending = false</code> on resolution. Drops response if frame was captured more than 1500ms ago. Phase and GuidedScan's stop sequence both reset on every Stop.</p>
+    <p>Owns the <code>setInterval</code> and the <code>scan → explore → navigate</code> phase state machine (FR-SCAN-01–06). Phase determines the capture interval (500ms scan, 1000ms explore/navigate), which prompt is sent, whether gyroscope gating applies (scan only), and the confidence threshold for transitioning toward the destination. During scan phase, frame capture is additionally gated by GuidedScan's per-stop turn/settle staging — no frame is captured until a stop's turn is complete and the brief settle dwell has elapsed. Checks <code>pending</code> flag before calling. Calls <code>CameraStream.getFrame()</code>, assembles payload, POSTs directly to <code>https://api.anthropic.com/v1/messages</code> with the key from <code>import.meta.env.VITE_ANTHROPIC_API_KEY</code>, sets <code>pending = false</code> on resolution. Drops the response if the frame was captured more than 4500ms ago (<code>STALE_FRAME_MS</code>, matching FR-CAM-02 / R-01). Phase and GuidedScan's stop sequence both reset on every Stop.</p>
 
     <h3>Gyroscope</h3>
     <p>Singleton wrapping <code>DeviceMotionEvent</code>, used only during scan phase. Initialized inside the Start tap handler, not on page load — also requests iOS's <code>DeviceMotionEvent.requestPermission()</code> there, in the same gesture context, since iOS 13+ otherwise never fires rotation events at all. Exposes <code>isRotatingTooFast()</code> (true above 30°/s yaw rate; always <code>false</code> if <code>DeviceMotionEvent</code> is unavailable, so scan phase is never blocked on unsupported devices) and <code>shouldWarnRotationSpeed()</code> (debounced to at most once per 2.5 seconds). Also integrates signed rotation rate over time into a resettable accumulator (<code>resetTurnAccumulator()</code> / <code>getAccumulatedTurnDegrees()</code>) used by GuidedScan to detect when a stop's ~90° turn is complete, plus <code>hasGyroData()</code> so callers can fall back to a timer when no rotation data is available at all — only set once a <code>devicemotion</code> event actually carries rotation-rate data, not merely once any motion event has fired (FR-SCAN-02).</p>
@@ -1374,7 +1412,7 @@ Rules:
     <p>Owns the 4-stop scan sequence (FR-SCAN-01/02/06): <code>ahead → right → behind → left</code>, each reached by a ~90° turn detected via Gyroscope (or a fixed dwell-time fallback, or — regardless of Gyroscope's reported state — a hard 6-second per-stop ceiling, FR-SCAN-02). Stages each stop through <code>awaiting_turn → settling → ready</code> before NavigationLoop captures and analyzes a frame, and reports the captured frame back to the UI preview (FR-UI-04) at the end of every stop, not only on a goal-found short-circuit. Records each stop's <code>path_openness</code>/obstacles/<code>navigation_direction</code>, and after all 4 are recorded (with no earlier goal-found short-circuit), <code>decide()</code> picks the highest-scoring open, unblocked stop and returns a relative turn instruction toward it, or reports no clear direction if none clears the minimum openness bar.</p>
 
     <h3>ObstacleRouter</h3>
-    <p>Receives parsed JSON. Maintains a <code>consecutiveHighCount</code> counter. On <code>urgency: high</code>, increments counter; fires interrupt only when counter reaches 2. Resets counter on any non-high frame. Medium urgency enqueues. Low urgency discards.</p>
+    <p>Receives parsed JSON. On <code>urgency: high</code>, cancels current speech and speaks the alert on the <strong>first</strong> frame — no 2-frame confirmation, since at 1 fps plus pipeline latency a 2-frame wait consumes the entire available safety window (FR-OBS-01, R-04). Medium urgency enqueues after the current direction finishes. Low urgency discards.</p>
 
     <h3>SpeechQueue</h3>
     <p>Wraps <code>speechSynthesis</code>. Exposes <code>speak(text, interrupt = false)</code>. When <code>interrupt = true</code>, calls <code>speechSynthesis.cancel()</code> first. Tracks last spoken text and timestamp to enforce deduplication (no repeat within 10s).</p>
@@ -1391,13 +1429,16 @@ Rules:
       <h2 class="section-title">Data Flow</h2>
     </div>
 
-    <p>The processing loop runs once per second. Each cycle is a complete pipeline from frame capture to spoken output.</p>
+    <p>The core per-frame loop below runs at 1 fps in navigate and explore phases (2 fps during scan). Each cycle is a complete pipeline from frame capture to spoken output. The scan → explore → navigate state machine (Section 5) and the parallel on-device CV loops (Section 17) sit on top of this loop and are not redrawn here.</p>
 
     <div class="diagram-wrap">
       <svg width="100%" viewBox="0 0 760 560" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="VisionGuide core processing loop flowchart">
         <defs>
           <marker id="arr2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
             <path d="M2 1L8 5L2 9" fill="none" stroke="#888" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </marker>
+          <marker id="arr2g" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M2 1L8 5L2 9" fill="none" stroke="#1a6640" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
           </marker>
         </defs>
 
@@ -1419,6 +1460,11 @@ Rules:
         <rect x="230" y="250" width="300" height="56" rx="8" fill="#eceae4" stroke="#aaa" stroke-width="1"/>
         <text x="380" y="272" font-family="system-ui,sans-serif" font-size="13" fill="#333" font-weight="600" text-anchor="middle">POST to Anthropic API</text>
         <text x="380" y="291" font-family="system-ui,sans-serif" font-size="11" fill="#444" text-anchor="middle">frame + goal + last 2 responses</text>
+
+        <!-- CV context annotation (Spec 12 / FR-CV-03) -->
+        <rect x="560" y="262" width="172" height="32" rx="6" fill="#eaf4ee" stroke="#1a6640" stroke-width="1"/>
+        <text x="646" y="282" font-family="system-ui,sans-serif" font-size="11" fill="#1a6640" font-weight="600" text-anchor="middle">+ CV context (Spec 12)</text>
+        <line x1="558" y1="278" x2="532" y2="278" stroke="#1a6640" stroke-width="1.5" marker-end="url(#arr2g)"/>
 
         <!-- Parse -->
         <rect x="230" y="334" width="300" height="56" rx="8" fill="#f0ebfb" stroke="#7a3fbf" stroke-width="1"/>
@@ -1465,7 +1511,7 @@ Rules:
         <line x1="660" y1="110" x2="532" y2="110" stroke="#aaa" stroke-width="1" stroke-dasharray="4 2" marker-end="url(#arr2)"/>
         <text x="704" y="300" font-family="system-ui,sans-serif" font-size="10" fill="#aaa" text-anchor="middle">loop</text>
       </svg>
-      <div class="diagram-caption">Figure 2 — Core processing loop: 1 frame per second, stale frame guard, three-way output routing</div>
+      <div class="diagram-caption">Figure 2 — Core per-frame processing loop (navigate/explore): stale-frame guard and three-way output routing. Phase machine (Section 5) and on-device CV loops (Section 17) not shown.</div>
     </div>
   </section>
 
@@ -1499,7 +1545,7 @@ Rules:
           <li><span class="task-dot"></span>NavigationLoop: setInterval at 1000ms, pending flag guard</li>
           <li><span class="task-dot"></span>Live frame → Anthropic API → parse → speak pipeline end-to-end</li>
           <li><span class="task-dot"></span>Goal text input field wired to app state</li>
-          <li><span class="task-dot"></span>ObstacleRouter: urgency tiers, 2-frame confirmation for high</li>
+          <li><span class="task-dot"></span>ObstacleRouter: urgency tiers, high fires on first frame</li>
           <li><span class="task-dot"></span>SpeechQueue: interrupt vs queue logic</li>
           <li><span class="task-dot"></span>GoalTracker: 2-frame arrival confirmation, loop stop</li>
           <li><span class="task-dot"></span>WakeLock API integration</li>
@@ -1514,7 +1560,7 @@ Rules:
           <li><span class="task-dot"></span>Context window: last 2 responses included in each API call</li>
           <li><span class="task-dot"></span>Deduplication: no repeat direction within 10 seconds</li>
           <li><span class="task-dot"></span>Silence fallback: "Still scanning" after 3s timeout</li>
-          <li><span class="task-dot"></span>Stale frame guard: drop responses older than 1500ms</li>
+          <li><span class="task-dot"></span>Stale frame guard: drop responses older than 4500ms</li>
           <li><span class="task-dot"></span>Error handling: API failures speak fallback, retry next cycle</li>
           <li><span class="task-dot"></span>UI: Start/Stop button, status indicator, last-spoken display</li>
           <li><span class="task-dot"></span>Accessibility audit: ARIA labels, aria-live regions, TalkBack test</li>
@@ -1731,6 +1777,7 @@ Rules:
 
     <h3>API Budget (OQ-04 resolved)</h3>
     <p>Budget is $5.00/day. At ~$0.003/call (claude-sonnet-4-6 with a 640×480 JPEG at 1 fps), $5 covers ~1,666 calls — approximately 27 minutes of continuous active navigation. Sufficient for demo day with headroom. Monitor via the Anthropic dashboard. No in-app enforcement needed for a single controlled device.</p>
+  </section>
 
 
   <!-- S17: On-Device CV Layer -->
@@ -1755,6 +1802,74 @@ Rules:
         <tr><td>Slow (1000ms)</td><td>~1fps</td><td>cvContextBuilder → Claude prompt (existing loop)</td></tr>
       </tbody>
     </table>
+
+    <div class="diagram-wrap">
+      <svg width="100%" viewBox="0 0 760 400" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Spec 12 three-loop CV architecture: the camera stream feeds a fast rAF loop (~15fps: cvDetector, cvTracker, cvWorldModel.update), a medium 333ms loop (~3fps: hazardEvaluator, estimateRisk, obstacles.js to audio), and a slow 1000ms loop (~1fps: cvContextBuilder to the Claude prompt). The fast loop writes an atomic world-model snapshot that the medium and slow loops read via getSnapshot.">
+        <defs>
+          <marker id="arr3" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M2 1L8 5L2 9" fill="none" stroke="#888" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </marker>
+          <marker id="arr3g" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M2 1L8 5L2 9" fill="none" stroke="#1a6640" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </marker>
+        </defs>
+
+        <!-- Camera stream -->
+        <rect x="300" y="16" width="160" height="44" rx="8" fill="#e8edfb" stroke="#1a4fd6" stroke-width="1"/>
+        <text x="380" y="43" font-family="system-ui,sans-serif" font-size="13" fill="#1a4fd6" font-weight="600" text-anchor="middle">Camera stream</text>
+
+        <!-- Split from camera to the three loops -->
+        <line x1="380" y1="60" x2="380" y2="82" stroke="#888" stroke-width="1.5"/>
+        <line x1="140" y1="82" x2="620" y2="82" stroke="#888" stroke-width="1.5"/>
+        <line x1="140" y1="82" x2="140" y2="108" stroke="#888" stroke-width="1.5" marker-end="url(#arr3)"/>
+        <line x1="380" y1="82" x2="380" y2="108" stroke="#888" stroke-width="1.5" marker-end="url(#arr3)"/>
+        <line x1="620" y1="82" x2="620" y2="108" stroke="#888" stroke-width="1.5" marker-end="url(#arr3)"/>
+
+        <!-- Fast loop -->
+        <rect x="40" y="110" width="200" height="120" rx="8" fill="#eaf4ee" stroke="#1a6640" stroke-width="1"/>
+        <text x="140" y="138" font-family="system-ui,sans-serif" font-size="14" fill="#1a6640" font-weight="600" text-anchor="middle">FAST — rAF</text>
+        <text x="140" y="160" font-family="system-ui,sans-serif" font-size="12" fill="#444" text-anchor="middle">~15 fps</text>
+        <text x="140" y="186" font-family="system-ui,sans-serif" font-size="11" fill="#444" text-anchor="middle">cvDetector →</text>
+        <text x="140" y="203" font-family="system-ui,sans-serif" font-size="11" fill="#444" text-anchor="middle">cvTracker →</text>
+        <text x="140" y="220" font-family="system-ui,sans-serif" font-size="11" fill="#444" text-anchor="middle">cvWorldModel.update()</text>
+
+        <!-- Medium loop -->
+        <rect x="280" y="110" width="200" height="120" rx="8" fill="#fff2ea" stroke="#b84c00" stroke-width="1"/>
+        <text x="380" y="138" font-family="system-ui,sans-serif" font-size="14" fill="#b84c00" font-weight="600" text-anchor="middle">MEDIUM — 333ms</text>
+        <text x="380" y="160" font-family="system-ui,sans-serif" font-size="12" fill="#444" text-anchor="middle">~3 fps</text>
+        <text x="380" y="186" font-family="system-ui,sans-serif" font-size="11" fill="#444" text-anchor="middle">hazardEvaluator →</text>
+        <text x="380" y="203" font-family="system-ui,sans-serif" font-size="11" fill="#444" text-anchor="middle">estimateRisk() →</text>
+        <text x="380" y="220" font-family="system-ui,sans-serif" font-size="11" fill="#444" text-anchor="middle">obstacles.js → audio</text>
+
+        <!-- Slow loop -->
+        <rect x="520" y="110" width="200" height="120" rx="8" fill="#f0ebfb" stroke="#7a3fbf" stroke-width="1"/>
+        <text x="620" y="138" font-family="system-ui,sans-serif" font-size="14" fill="#5a2a9f" font-weight="600" text-anchor="middle">SLOW — 1000ms</text>
+        <text x="620" y="160" font-family="system-ui,sans-serif" font-size="12" fill="#444" text-anchor="middle">~1 fps</text>
+        <text x="620" y="186" font-family="system-ui,sans-serif" font-size="11" fill="#444" text-anchor="middle">cvContextBuilder →</text>
+        <text x="620" y="203" font-family="system-ui,sans-serif" font-size="11" fill="#444" text-anchor="middle">Claude prompt</text>
+        <text x="620" y="220" font-family="system-ui,sans-serif" font-size="11" fill="#444" text-anchor="middle">(existing 1 fps loop)</text>
+
+        <!-- World model -->
+        <rect x="230" y="296" width="300" height="56" rx="8" fill="#eceae4" stroke="#aaa" stroke-width="1"/>
+        <text x="380" y="320" font-family="system-ui,sans-serif" font-size="13" fill="#333" font-weight="600" text-anchor="middle">cvWorldModel.getSnapshot()</text>
+        <text x="380" y="338" font-family="system-ui,sans-serif" font-size="11" fill="#444" text-anchor="middle">atomic · replace-not-mutate · skip if &gt;1000ms old</text>
+
+        <!-- Fast writes to world model -->
+        <line x1="140" y1="230" x2="140" y2="324" stroke="#1a6640" stroke-width="1.5"/>
+        <line x1="140" y1="324" x2="228" y2="324" stroke="#1a6640" stroke-width="1.5" marker-end="url(#arr3g)"/>
+        <text x="150" y="290" font-family="system-ui,sans-serif" font-size="10" fill="#1a6640" text-anchor="start">update() — writer</text>
+
+        <!-- Medium reads snapshot -->
+        <line x1="380" y1="296" x2="380" y2="232" stroke="#888" stroke-width="1.5" marker-end="url(#arr3)"/>
+        <text x="388" y="272" font-family="system-ui,sans-serif" font-size="10" fill="#777" text-anchor="start">getSnapshot()</text>
+
+        <!-- Slow reads snapshot -->
+        <line x1="530" y1="324" x2="620" y2="324" stroke="#888" stroke-width="1.5"/>
+        <line x1="620" y1="324" x2="620" y2="232" stroke="#888" stroke-width="1.5" marker-end="url(#arr3)"/>
+        <text x="612" y="290" font-family="system-ui,sans-serif" font-size="10" fill="#777" text-anchor="end">getSnapshot()</text>
+      </svg>
+      <div class="diagram-caption">Figure 3 — Spec 12 CV layer: one fast rAF writer updates an atomic world-model snapshot; the throttled medium and slow loops only read it (skipping stale snapshots). Only the slow loop's compact CV context reaches Claude (FR-CV-03).</div>
+    </div>
 
     <h3>New requirements</h3>
 

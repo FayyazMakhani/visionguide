@@ -1,70 +1,96 @@
 # VisionGuide
 
-VisionGuide is a mobile-first, voice-first navigation assistant for blind and low-vision users. It combines the phone camera, microphone, and Claude-powered vision understanding to provide spoken guidance for indoor navigation.
+**A mobile-first, voice-first indoor navigation assistant for blind and low-vision users.**
 
-## What VisionGuide does
+VisionGuide turns a standard phone into an indoor wayfinding aid using only its camera, microphone, and Claude's vision understanding. State where you want to go, point the phone forward, and follow short spoken directions - no beacons, floor plans, or building infrastructure required.
 
-VisionGuide helps a user navigate an environment by:
+> **Safety:** VisionGuide is a supplemental aid, not a replacement for a white cane, guide dog, or other primary mobility aid. It makes probabilistic assessments from a camera feed and will sometimes be wrong. Keep using your primary mobility aid at all times.
 
-- listening for a destination through voice or text input
-- auto-listening for a destination when the app opens
-- scanning the surroundings with the camera and AI
-- speaking short, actionable navigation instructions
-- warning about obstacles and blocked paths
-- supporting stop, arrival, and retry flows
+## What it does
 
-The experience is designed to be simple and hands-free: the user can start a session, point the phone forward, and follow spoken guidance while keeping their hands free.
+- **Voice destination entry** - auto-listens on launch, plus a mic button and text fallback. Claude resolves plain-language phrasing ("I need to wash my hands" becomes "the bathroom").
+- **Guided scan, explore, navigate** - a gyroscope-gated 4-direction scan locates the goal or the most open path, an explore phase moves you toward hallways and signage, and a navigate phase gives turn-by-turn directions.
+- **Spoken guidance** - short, grounded, forward-only instructions (never "behind"), with dead-end and closed-door handling and memory of where the goal was last seen.
+- **Obstacle and hazard awareness** - Claude reports obstacle urgency tiers, and a parallel on-device CV layer fires fast hazard alerts between Claude calls.
+- **Accessibility-first** - screen-reader operable, WCAG AA contrast, large tap targets, and an analyzed-frame preview so a sighted observer can see what the AI sees.
 
-## Core features
+## How it works
 
-- Voice-first destination entry with speech recognition and text fallback
-- Camera-based scene understanding using Claude Vision through the Anthropic API
-- Guided scan, explore, and navigate phases for indoor wayfinding
-- Spoken guidance with obstacle and path-blocking awareness
-- Frame preview support so a sighted observer can see what the AI is analyzing
-- Onboarding, safety messaging, and graceful stop/arrival handling
+VisionGuide runs two vision layers in parallel, entirely in the browser:
+
+| Layer | Rate | Role |
+|-------|------|------|
+| Claude Vision (Anthropic API) | ~1 fps | Navigation reasoning, goal recognition, sign reading. Haiku in the navigate phase, Sonnet in scan/explore. |
+| On-device CV (MediaPipe EfficientDet-Lite0) | ~15 fps | Low-latency hazard detection between Claude calls. |
+
+Each frame is drawn to a canvas and sent to Claude; the JSON response drives spoken directions, obstacle alerts, and arrival detection. The browser calls the Anthropic API directly - there is no backend or server.
 
 ## Tech stack
 
-- React 19 with Vite
-- JavaScript and JSX
-- Web APIs for camera access, speech recognition, speech synthesis, and device motion
-- Anthropic Claude API for destination extraction and navigation reasoning
-- ESLint and Vite build tooling
+- **React 19 + Vite** (JavaScript / JSX, no TypeScript)
+- **Anthropic Claude API** for destination extraction and navigation reasoning, called directly from the browser
+- **MediaPipe Tasks Vision** for on-device object detection
+- **Web APIs**: camera (`getUserMedia`), speech recognition, speech synthesis, device motion, and wake lock
+- **ESLint** for linting
+
+Client-only: no backend, database, or authentication.
 
 ## Supported platforms
 
 - iOS Safari 16+ / Chrome on iOS 16+ (WebKit)
 - Chrome 120+ on Android 10+
 
-Requires a device with a rear camera and microphone, served over HTTPS (the camera and speech APIs require a secure context).
+Requires a device with a rear camera and microphone, served over HTTPS (the camera and speech APIs need a secure context).
 
-## Repository structure
+## Getting started
 
-- src/App.jsx — main app state and navigation flow
-- src/components/ — UI views such as onboarding, destination entry, status, navigating, and arrival screens
-- src/modules/ — camera, speech, loop, destination extraction, recognition, gyroscope, landmarks, memory, and obstacle handling
-- src/api/claude.js — Claude API integration and prompt message construction
-- src/prompts/system.js — system prompts for destination extraction and navigation reasoning
-- context/ — product specs, implementation notes, workflow rules, and progress tracking
-- public/ — static assets
+**Prerequisites:** a recent Node.js LTS and an [Anthropic API key](https://console.anthropic.com/).
 
-## Running locally
+```bash
+# 1. Install dependencies
+npm install
 
-1. Install dependencies:
-   `npm install`
-2. Create a local environment file with your Anthropic API key:
-   `VITE_ANTHROPIC_API_KEY=your_key_here`
-3. Start the development server:
-   `npm run dev`
-4. Open the local Vite URL in a browser and allow camera and microphone permissions.
+# 2. Add your API key
+cp .env.example .env        # then edit .env and set VITE_ANTHROPIC_API_KEY
 
-## Build
+# 3. Start the dev server
+npm run dev
+```
 
-To create a production build, run:
+Open the printed local URL and allow camera and microphone access when prompted. To test on a phone, serve over HTTPS (or the Vite network URL through a secure tunnel) - the camera will not start otherwise.
 
-`npm run build`
+### Scripts
 
-## Notes
+| Command | Description |
+|---------|-------------|
+| `npm run dev` | Start the Vite dev server |
+| `npm run build` | Production build to `dist/` |
+| `npm run preview` | Preview the production build |
+| `npm run lint` | Run ESLint |
 
-VisionGuide is an assistive prototype and should be used alongside a cane or other mobility aid. A valid Anthropic API key is required for the AI navigation features.
+## Project structure
+
+```
+src/
+  App.jsx            Main app state and scan/explore/navigate flow
+  components/        UI views (onboarding, destination entry, status, navigating, arrival)
+  modules/           Core logic: camera, speech, loop, gyroscope, guided scan,
+                     on-device CV, memory, obstacle handling
+  api/claude.js      Direct Anthropic API calls and message construction
+  prompts/system.js  Phase-specific Claude prompts
+  constants.js       Tunable thresholds, intervals, and timeouts
+  theme.js           Shared design tokens
+public/models/       MediaPipe EfficientDet-Lite0 model
+context/             Product spec (PRD), workflow docs, and progress tracker
+```
+
+## Documentation
+
+- **Product spec (source of truth):** [`context/specifications/visionguide-prd.html`](context/specifications/visionguide-prd.html)
+- **Project overview:** [`context/project-overview.md`](context/project-overview.md)
+- **Conventions and workflow:** [`context/code-standards.md`](context/code-standards.md), [`context/ai-workflow-rules.md`](context/ai-workflow-rules.md)
+- **Progress:** [`context/progress-tracker.md`](context/progress-tracker.md)
+
+## Security note
+
+The Anthropic API key is bundled into the client via `VITE_ANTHROPIC_API_KEY` and is therefore exposed in the deployed build. This is acceptable for a controlled demo or prototype, but a public deployment would need a backend proxy to keep the key server-side. Set a spend limit in the Anthropic console, and keep `.env` out of version control (it is gitignored).
